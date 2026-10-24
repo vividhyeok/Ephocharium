@@ -4,6 +4,7 @@ import MapView from "./MapView";
 import Icon, { type IconName } from "./Icons";
 import Minimap from "./Minimap";
 import PresetArt from "./PresetArt";
+import { ERAS, eraOf, ROLES } from "./civilization";
 import {
   TOOLS,
   validate,
@@ -67,6 +68,7 @@ function App() {
     "new" | "history" | "save" | "help" | null
   >(null);
   const [selected, setSelected] = useState(0);
+  const [hoverTile, setHoverTile] = useState(-1);
   const [focus, updateFocus] = useState<{
     tile: number;
     request: number;
@@ -256,6 +258,16 @@ function App() {
     if (input.current) input.current.value = "";
   };
   const n = world?.nations.find((n) => n.id === selected);
+  const polity = world?.life?.polities.find((p) => p.nation === selected);
+  const frontline =
+    world?.life?.armies.find((a) => a.nation === selected && a.fighting) ||
+    world?.life?.armies.find((a) => a.nation === selected);
+  const cities =
+    world?.life?.settlements.filter((c) => c.nation === selected) || [];
+  const tile = world?.tiles[hoverTile];
+  const hoveredPerson = world?.life?.citizens.find(
+    (u) => Math.floor(u.y) * world.width + Math.floor(u.x) === hoverTile,
+  );
   const alive = world?.nations.filter((n) => n.alive) || [];
   const population = Math.round(alive.reduce((a, n) => a + n.population, 0));
   const wars = world?.relations.filter((r) => r.war).length || 0;
@@ -302,6 +314,8 @@ function App() {
             political={ui.political}
             focus={focus}
             command={viewCommand}
+            paused={ui.paused}
+            onHover={setHoverTile}
             onSelect={(id) => setSelected(id)}
             onUse={(tile) =>
               worker.current?.postMessage({
@@ -340,6 +354,15 @@ function App() {
               <small>전쟁</small>
             </span>
           </div>
+          {world?.life && (
+            <div className="living-summary">
+              <Icon name="human" size={12} />
+              <span>
+                움직이는 주민 {world.life.citizens.length} · 1명 표시 ≈{" "}
+                {world.life.peoplePerAgent}명
+              </span>
+            </div>
+          )}
         </div>
         <div className="map-actions">
           <button
@@ -436,6 +459,51 @@ function App() {
             </button>
           </aside>
         )}
+        {tile && !ui.observe && (
+          <aside className="tile-inspector">
+            <span className="eyebrow">가까이 들여다보기</span>
+            <h3>
+              {
+                ["바다", "모래 해안", "비옥한 평야", "숲", "산악", "설원"][
+                  tile.t
+                ]
+              }
+              <small>
+                {hoverTile % world!.width},{" "}
+                {Math.floor(hoverTile / world!.width)}
+              </small>
+            </h3>
+            <div>
+              <span>
+                목재 <b>{Math.round(tile.wood || 0)}</b>
+              </span>
+              <span>
+                광물 <b>{Math.round(tile.mineral || 0)}</b>
+              </span>
+              <span>
+                비옥도 <b>{Math.round(tile.fertility * 100)}%</b>
+              </span>
+            </div>
+            {hoveredPerson && (
+              <p>
+                <Icon
+                  name={hoveredPerson.role === "ruler" ? "revolt" : "human"}
+                  size={13}
+                />
+                <b>{hoveredPerson.name}</b> · {ROLES[hoveredPerson.role]}
+                <small>
+                  {hoveredPerson.route.length
+                    ? "일터로 이동 중"
+                    : hoveredPerson.work
+                      ? hoveredPerson.returning
+                        ? "집에서 쉬는 중"
+                        : "작업 중"
+                      : "이동 준비"}
+                </small>
+              </p>
+            )}
+          </aside>
+        )}
         {n && (
           <aside className="nation-panel">
             <button
@@ -461,6 +529,70 @@ function App() {
                 ? "정복을 꿈꾸는 지도자"
                 : "번영을 바라는 지도자"}
             </p>
+            <section className="civilization-card">
+              <div>
+                <span className="era-label">{ERAS[eraOf(n)].name}</span>
+                <b>{cities.length}개 정착지</b>
+              </div>
+              <p>{ERAS[eraOf(n)].description}</p>
+              <div className="era-progress">
+                <i
+                  style={{
+                    width:
+                      (eraOf(n) === 5
+                        ? 100
+                        : ((n.tech - ERAS[eraOf(n)].threshold) /
+                            (ERAS[eraOf(n) + 1].threshold -
+                              ERAS[eraOf(n)].threshold)) *
+                          100) + "%",
+                  }}
+                />
+              </div>
+              <small>
+                {eraOf(n) === 5
+                  ? "항공 교역 기술을 갖춘 문명"
+                  : "다음 시대 · " + ERAS[eraOf(n) + 1].name}
+              </small>
+              <button
+                onClick={(event) => {
+                  setFocus(n.capital);
+                  moveView("detail");
+                  event.currentTarget
+                    .closest(".nation-panel")
+                    ?.scrollTo({ top: 0 });
+                }}
+              >
+                <Icon name="inspect" size={13} /> 도시 가까이 보기{" "}
+                <Icon name="chevron" size={13} />
+              </button>
+            </section>
+            {polity && (
+              <div className="power-status">
+                <span>
+                  정치 체제{" "}
+                  <b>
+                    {
+                      {
+                        tribe: "부족 의회",
+                        monarchy: "군주정",
+                        republic: "공화정",
+                        vacuum: "권력 공백",
+                      }[polity.regime]
+                    }
+                  </b>
+                </span>
+                <span>
+                  지도자의 권위 <b>{Math.round(polity.authority * 100)}%</b>
+                </span>
+                <span>
+                  자원 비축{" "}
+                  <b>
+                    목재 {Math.floor(polity.wood)} · 금속{" "}
+                    {Math.floor(polity.metal)}
+                  </b>
+                </span>
+              </div>
+            )}
             <div className="nation-grid">
               <span>
                 인구<b>{Math.round(n.population).toLocaleString()}명</b>
@@ -496,6 +628,41 @@ function App() {
                 : "평화로운 시기"}{" "}
               {n.protected ? "· 신의 보호" : ""}
             </p>
+            <div className="city-activity">
+              <span>
+                주민{" "}
+                {world?.life?.citizens.filter((u) => u.nation === n.id)
+                  .length || 0}
+                개 집단
+              </span>
+              <span>
+                군대{" "}
+                {world?.life?.armies.filter((a) => a.nation === n.id).length ||
+                  0}
+                개 부대
+              </span>
+              <span>
+                항공기{" "}
+                {world?.life?.flights.filter((f) => f.nation === n.id).length ||
+                  0}
+                대
+              </span>
+              {frontline && (
+                <button
+                  onClick={() => {
+                    setFocus(
+                      Math.floor(frontline.y) * world!.width +
+                        Math.floor(frontline.x),
+                    );
+                    moveView("detail");
+                  }}
+                >
+                  <Icon name="war" size={12} />
+                  {frontline.fighting ? "교전 중" : "행군 중"} ·{" "}
+                  {Math.ceil(frontline.strength)}명 — 전선 가까이 보기
+                </button>
+              )}
+            </div>
             <details>
               <summary>문명의 흐름 자세히 보기</summary>
               <p>
@@ -564,7 +731,7 @@ function App() {
               왕국을 눌러 이야기를 읽거나, 아래에서 인간을 선택해 땅에
               놓아보세요.
               <br />
-              문명은 스스로 자랍니다. 스페이스로 쉬어갈 수 있어요.
+              왕국을 선택하고 ‘도시 가까이 보기’로 움직이는 주민을 만나보세요.
             </p>
             <button
               onClick={() => {

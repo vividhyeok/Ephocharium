@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { generate, step } from "../src/engine";
+import { generate, step, found, apply, type World } from "../src/engine";
+import { refreshLife } from "../src/civilization";
+import { readFile } from "node:fs/promises";
 test("세계 → 시간 → 저장 → 내보내기 → 복원 → 관찰 모드", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -210,4 +212,149 @@ test("성장한 세계에서 지도 선택과 신의 개입이 실제 인구를 
     };
   });
   console.log("렌더링 측정", JSON.stringify(frame));
+});
+test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장 좌표가 진행한다", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const w = generate({
+    seed: 71,
+    size: 32,
+    sea: 0.4,
+    forest: 0.3,
+    mountains: 0.03,
+    preset: "empty",
+  });
+  for (const t of w.tiles) {
+    t.t = 2;
+    t.fertility = 0.9;
+    t.ore = 0.8;
+    t.wood = 0;
+    t.mineral = 100;
+  }
+  found(w, 328, 700);
+  found(w, 344, 700);
+  for (let i = 0; i < w.tiles.length; i++) {
+    w.tiles[i].owner = i % 32 < 16 ? 1 : 2;
+    if (i % 11 === 0) {
+      w.tiles[i].t = 3;
+      w.tiles[i].wood = 90;
+    }
+  }
+  for (const n of w.nations) {
+    n.tech = 8;
+    n.food = 5000;
+    n.wealth = 5000;
+    n.aggression = 0.2;
+  }
+  refreshLife(w);
+  for (let i = 0; i < 80; i++) step(w);
+  expect(w.life!.flights.length).toBeGreaterThan(0);
+  await page.goto("/");
+  await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
+  await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
+  await page.getByRole("button", { name: "일시정지", exact: true }).click();
+  await page.locator("input[type=file]").setInputFiles({
+    name: "future.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(w)),
+  });
+  await expect(page.locator(".year")).toContainText("80");
+  await page
+    .locator(".kingdom-list button")
+    .filter({ hasText: w.nations[0].name })
+    .click();
+  await expect(page.locator(".era-label")).toHaveText("항공 시대");
+  await page.getByRole("button", { name: "도시 가까이 보기" }).click();
+  await expect(page.locator(".city-activity")).toContainText("항공기 1대");
+  await page.screenshot({ path: "test-results/aviation-city.png" });
+  const snapshot = async (): Promise<World> => {
+    await page.getByRole("button", { name: "▣ 저장" }).click();
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "↓ 세계 파일 내보내기" }).click();
+    const d = await pending;
+    const value = JSON.parse(await readFile((await d.path())!, "utf8"));
+    await page.getByLabel("패널 닫기").click();
+    return value;
+  };
+  const before = await snapshot();
+  await page.getByRole("button", { name: "재생", exact: true }).click();
+  await expect
+    .poll(async () =>
+      Number((await page.locator(".year").innerText()).replace(/[^0-9]/g, "")),
+    )
+    .toBeGreaterThan(before.year + 1);
+  await page.getByRole("button", { name: "일시정지", exact: true }).click();
+  const after = await snapshot();
+  expect(
+    after.life!.citizens.some((c) => {
+      const previous = before.life!.citizens.find((u) => u.id === c.id);
+      return previous && Math.hypot(c.x - previous.x, c.y - previous.y) > 0.1;
+    }),
+  ).toBe(true);
+  expect(after.life!.flights[0].progress).not.toBe(
+    before.life!.flights[0].progress,
+  );
+  expect(errors).toEqual([]);
+});
+
+test("전선에서 군대를 확인하고 평화 능력으로 즉시 해산시킬 수 있다", async ({
+  page,
+}) => {
+  const w = generate({
+    seed: 71,
+    size: 32,
+    sea: 0.4,
+    forest: 0.3,
+    mountains: 0.03,
+    preset: "empty",
+  });
+  for (const t of w.tiles) {
+    t.t = 2;
+    t.fertility = 0.9;
+    t.wood = 0;
+    t.mineral = 0;
+    t.ore = 0.5;
+  }
+  found(w, 328, 500);
+  found(w, 344, 500);
+  for (let i = 0; i < w.tiles.length; i++)
+    w.tiles[i].owner = i % 32 < 16 ? 1 : 2;
+  for (const n of w.nations) {
+    n.tech = 2;
+    n.food = 3000;
+    n.wealth = 1500;
+    n.aggression = 0.2;
+  }
+  apply(w, "war", 328);
+  for (let i = 0; i < 12; i++) step(w);
+  expect(w.life!.armies.some((a) => a.fighting)).toBe(true);
+  await page.goto("/");
+  await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
+  await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
+  await page.getByRole("button", { name: "일시정지", exact: true }).click();
+  await page
+    .locator("input[type=file]")
+    .setInputFiles({
+      name: "battle.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(w)),
+    });
+  await expect(page.locator(".year")).toContainText("12");
+  await page
+    .locator(".kingdom-list button")
+    .filter({ hasText: w.nations[0].name })
+    .click();
+  await page.getByRole("button", { name: /전선 가까이 보기/ }).click();
+  await page.locator(".nation-panel").evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await page.screenshot({ path: "test-results/battle-front.png" });
+  await page.getByRole("button", { name: "문명", exact: true }).click();
+  await page.getByRole("button", { name: "평화", exact: true }).click();
+  const box = (await page.getByLabel("문명 세계 지도").boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(page.locator(".stats b").nth(2)).toHaveText("0");
+  await expect(page.locator(".city-activity")).toContainText("군대 0개 부대");
 });

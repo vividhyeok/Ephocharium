@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { World } from "./engine";
+import { drawInfrastructure, drawActors } from "./scene";
+import { ERAS, eraOf } from "./civilization";
 const PALETTE = [
   "#478b95",
   "#e3d39e",
@@ -17,6 +19,8 @@ interface Props {
   onSelect: (id: number) => void;
   focus: { tile: number; request: number } | null;
   command: { action: string; id: number };
+  paused: boolean;
+  onHover: (tile: number) => void;
 }
 export default function MapView(props: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -37,6 +41,8 @@ export default function MapView(props: Props) {
     let lastTile = -1;
     let hover = -1;
     let dims = "";
+    let snapshot: World | undefined;
+    let snapshotTime = performance.now();
     const resize = () => {
       const r = el.getBoundingClientRect();
       el.width = Math.round(r.width * devicePixelRatio);
@@ -75,6 +81,7 @@ export default function MapView(props: Props) {
     };
     const move = (e: PointerEvent) => {
       hover = locate(e);
+      latest.current.onHover(hover);
       if (!down) return;
       if (drag) {
         camera.current.x += e.clientX - last.x;
@@ -131,6 +138,10 @@ export default function MapView(props: Props) {
       ctx.scale(c.zoom, c.zoom);
       ctx.imageSmoothingEnabled = false;
       const time = performance.now() / 1000;
+      if (snapshot !== w) {
+        snapshot = w;
+        snapshotTime = performance.now();
+      }
       if (cachedWorld !== w || cachedPolitical !== political) {
         raster.width = w.width * 8;
         raster.height = w.height * 8;
@@ -192,7 +203,7 @@ export default function MapView(props: Props) {
             if (w.tiles[i - 1]?.t !== 0) ctx.fillRect(x, y, 1, 8);
             if (w.tiles[i + 1]?.t !== 0) ctx.fillRect(x + 7, y, 1, 8);
           }
-          if (cell.t === 3) {
+          if (cell.t === 3 && (cell.wood ?? 80) > 4) {
             ctx.fillStyle = "#526f4b35";
             ctx.fillRect(x + 3, y + 5, 5, 3);
             ctx.fillStyle = "#726b43";
@@ -204,6 +215,12 @@ export default function MapView(props: Props) {
             ctx.fillRect(x + 1, y + 1, 3, 2);
             ctx.fillStyle = "#a3b76b";
             ctx.fillRect(x + 2, y, 2, 1);
+          }
+          if (cell.t === 3 && (cell.wood ?? 80) <= 4) {
+            ctx.fillStyle = "#9b8253";
+            ctx.fillRect(x + 3, y + 5, 3, 2);
+            ctx.fillStyle = "#d6bb83";
+            ctx.fillRect(x + 3, y + 4, 3, 1);
           }
           if (cell.t === 4) {
             ctx.fillStyle = "#526e5d35";
@@ -261,63 +278,23 @@ export default function MapView(props: Props) {
             ctx.stroke();
             ctx.globalAlpha = 1;
           }
-          if (i % 11 === 0 && cell.t === 2) {
-            ctx.fillStyle = "#d7bd77";
-            ctx.fillRect(x + 1, y + 2, 6, 5);
-            ctx.fillStyle = "#a2a260";
-            for (let a = 0; a < 3; a++)
-              ctx.fillRect(x + 1 + a * 2, y + 2, 1, 5);
-          }
-          if (i % 13 === 0 || i === n.capital) {
-            const capital = i === n.capital;
-            ctx.fillStyle = "#54644a50";
-            ctx.fillRect(x + 3, y + 5, capital ? 10 : 6, 4);
-            ctx.fillStyle = "#f3e4ba";
-            ctx.fillRect(x + 1, y + 2, capital ? 9 : 5, 5);
-            ctx.fillStyle = "#c1b18d";
-            ctx.fillRect(x + 6, y + 3, capital ? 4 : 1, 4);
-            ctx.fillStyle = noise < 50 ? "#a36c4b" : "#bd8657";
-            ctx.fillRect(x, y + 1, capital ? 11 : 7, 2);
-            ctx.fillRect(x + 1, y, capital ? 9 : 5, 1);
-            ctx.fillStyle = "#635849";
-            ctx.fillRect(x + 3, y + 4, 2, 3);
-            ctx.fillStyle = "#fff0b9";
-            ctx.fillRect(x + 6, y + 3, 1, 1);
-            if (capital) {
-              ctx.fillStyle = "#d5d1ad";
-              ctx.fillRect(x, y - 3, 3, 8);
-              ctx.fillRect(x + 8, y - 3, 3, 8);
-              ctx.fillStyle = n.color;
-              ctx.fillRect(x, y - 4, 3, 2);
-              ctx.fillRect(x + 8, y - 4, 3, 2);
-            }
-            if (capital) {
-              ctx.fillStyle = "#f3df9e";
-              ctx.fillRect(x + 4, y - 7, 1, 7);
-              ctx.fillStyle = n.color;
-              ctx.fillRect(x + 5, y - 7, 5, 3);
-            }
-          }
         });
+        drawInfrastructure(ctx, w);
         ctx = display;
         cachedWorld = w;
         cachedPolitical = political;
       }
       ctx.drawImage(raster, 0, 0);
-      if (c.zoom > 1)
-        for (let i = 0; i < w.tiles.length; i += 7) {
-          const cell = w.tiles[i];
-          if (!cell.owner) continue;
-          const n = w.nations[cell.owner - 1];
-          if (!n) continue;
-          const x = (i % w.width) * 8,
-            y = Math.floor(i / w.width) * 8,
-            walk = Math.sin(time * 1.5 + i) * 2;
-          ctx.fillStyle = "#ead4a6";
-          ctx.fillRect(x + 4 + walk, y + 3, 1.5, 1.5);
-          ctx.fillStyle = n.color;
-          ctx.fillRect(x + 4 + walk, y + 4.5, 1.5, 2);
-        }
+      drawActors(
+        ctx,
+        w,
+        latest.current.paused
+          ? 1
+          : Math.min(1, (performance.now() - snapshotTime) / 500),
+        time,
+        c.zoom,
+        latest.current.paused,
+      );
       for (const s of w.settlers) {
         ctx.fillStyle = "#f0d6aa";
         ctx.fillRect(
@@ -367,7 +344,10 @@ export default function MapView(props: Props) {
           y = c.y + Math.floor(n.capital / w.width) * 8 * c.zoom - 15;
         ctx.font = "600 11px system-ui";
         ctx.textAlign = "center";
-        const label = n.name.replace(" 왕국", "");
+        const label =
+          n.name.replace(" 왕국", "") +
+          " · " +
+          ERAS[eraOf(n)].name.replace(" 시대", "");
         const tw = ctx.measureText(label).width;
         if (x + tw < 0 || x - tw > width || y < 0 || y > height) continue;
         if (
@@ -428,7 +408,12 @@ export default function MapView(props: Props) {
       const z = c.zoom;
       c.zoom = Math.max(
         0.4,
-        Math.min(12, z * (props.command.action === "in" ? 1.3 : 1 / 1.3)),
+        Math.min(
+          12,
+          props.command.action === "detail"
+            ? Math.max(4, z)
+            : z * (props.command.action === "in" ? 1.3 : 1 / 1.3),
+        ),
       );
       c.x = el.clientWidth / 2 - ((el.clientWidth / 2 - c.x) * c.zoom) / z;
       c.y = el.clientHeight / 2 - ((el.clientHeight / 2 - c.y) * c.zoom) / z;

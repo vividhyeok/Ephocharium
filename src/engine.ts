@@ -1,3 +1,11 @@
+import {
+  prepareLife,
+  refreshLife,
+  updateLife,
+  researchRate,
+  validateLife,
+  type LifeState,
+} from "./civilization";
 export type Terrain = 0 | 1 | 2 | 3 | 4 | 5; // ocean, sand, grass, forest, mountain, snow
 export type Preset = "empty" | "dawn" | "four" | "islands" | "war" | "observe";
 export interface Tile {
@@ -6,6 +14,9 @@ export interface Tile {
   fertility: number;
   ore: number;
   damage: number;
+  wood?: number;
+  mineral?: number;
+  road?: number;
 }
 export interface Nation {
   id: number;
@@ -58,6 +69,7 @@ export interface World {
   settlers: { tile: number; population: number; progress: number }[];
   effects: Effect[];
   preset: Preset;
+  life?: LifeState;
 }
 export interface Options {
   seed: number;
@@ -239,6 +251,12 @@ export function generate(o: Options): World {
       starts.push(best);
       const n = found(w, best, o.preset === "observe" ? 180 : 50);
       if (n && o.preset === "war") n.aggression = 0.95;
+      if (n && o.preset === "observe") {
+        n.tech = 4.6 + random(w) * 1.3;
+        n.population = 350;
+        n.food = 1200;
+        n.wealth = 1800;
+      }
     }
   }
   if (o.preset === "dawn" && candidates.length)
@@ -247,6 +265,8 @@ export function generate(o: Options): World {
       population: 20,
       progress: 0,
     });
+  prepareLife(w);
+  refreshLife(w);
   if (o.preset === "observe") for (let i = 0; i < 100; i++) step(w);
   return w;
 }
@@ -270,6 +290,7 @@ export function burden(n: Nation) {
   return Math.max(0, n.territory / (48 + n.tech * 32) - 1) * 0.018;
 }
 export function step(w: World) {
+  prepareLife(w);
   w.year++;
   w.effects = w.effects.filter((e) => --e.life > 0);
   for (const s of [...w.settlers]) {
@@ -323,16 +344,26 @@ export function step(w: World) {
           0,
         ),
     );
-    n.tech += Math.min(0.012, n.wealth / 100000) * (0.8 + random(w) * 0.4);
+    n.tech += researchRate(w, n) * (0.9 + random(w) * 0.2);
     n.stability = clamp(
       n.stability + (fed ? 0.008 : -0.025) - burden(n),
       0.02,
       1,
     );
-    n.age += 0.25;
+    n.age += 1;
     if (n.age > 65 && random(w) < 0.025) {
       n.age = 20 + random(w) * 15;
       n.aggression = 0.2 + random(w) * 0.7;
+      n.leader = [
+        "이안",
+        "아린",
+        "레온",
+        "유나",
+        "서진",
+        "미라",
+        "에온",
+        "라온",
+      ][Math.floor(random(w) * 8)];
       record(w, n.name + "에 새로운 지도자가 즉위했습니다", [n.id], n.capital);
     }
     const frontier = cells
@@ -372,24 +403,7 @@ export function step(w: World) {
             );
           }
           if (r.war) {
-            const attack =
-              (n.population * (0.5 + n.tech) * n.stability) /
-              Math.sqrt(cells.length);
-            const defense =
-              (other.population * (0.7 + other.tech) * other.stability) /
-              Math.sqrt(Math.max(1, other.territory));
-            if (
-              !other.protected &&
-              random(w) < (attack / (attack + defense)) * 0.3
-            ) {
-              t.owner = n.id;
-              t.damage = 0.25;
-              other.population *= 0.985;
-              n.population *= 0.995;
-              w.effects.push({ tile: i, kind: "전투", life: 3 });
-              if (w.year % 5 === 0)
-                record(w, n.name + "의 국경 점령", [n.id, other.id], i);
-            }
+            // Occupation now requires a physical army to reach and besiege a tile.
             n.wealth = Math.max(0, n.wealth - 2);
             n.stability = Math.max(0.02, n.stability - 0.008);
             if (
@@ -455,6 +469,7 @@ export function step(w: World) {
       if (n.samples.length > 150) n.samples.shift();
     }
   }
+  updateLife(w, holdings);
 }
 export const TOOLS: Record<
   string,
@@ -653,16 +668,22 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
         )[tool];
         t.fertility = tool === "land" ? 0.9 : tool === "forest" ? 0.65 : 0.1;
         if (!land(t)) t.owner = 0;
+        t.wood = tool === "forest" ? 85 : 0;
+        if (tool === "ocean") t.mineral = 0;
       }
       if (tool === "rain") {
         t.damage = 0;
         t.fertility = Math.min(1, t.fertility + 0.15);
       }
-      if (tool === "resource") t.ore = 1;
+      if (tool === "resource") {
+        t.ore = 1;
+        t.mineral = 180;
+      }
       if (["fire", "meteor", "flood"].includes(tool)) {
         t.damage = tool === "meteor" ? 1 : 0.8;
         if (t.owner) affected.add(t.owner);
         if (tool === "fire" && t.t === 3) t.t = 2;
+        t.wood = (t.wood || 0) * 0.15;
         if (tool === "meteor") {
           t.t = 1;
           t.fertility = 0.15;
@@ -716,7 +737,10 @@ export function validate(data: unknown): data is World {
         t.owner >= 0 &&
         finite(t.fertility, 0, 1) &&
         finite(t.ore, 0, 1) &&
-        finite(t.damage, 0, 1),
+        finite(t.damage, 0, 1) &&
+        (t.wood === undefined || finite(t.wood)) &&
+        (t.mineral === undefined || finite(t.mineral)) &&
+        (t.road === undefined || finite(t.road, 0, 1)),
     ) &&
     Array.isArray(w.nations) &&
     w.nations.length < 100000 &&
@@ -798,6 +822,7 @@ export function validate(data: unknown): data is World {
     finite(w.year) &&
     Number.isInteger(w.seed) &&
     finite(w.seed, -2147483648, 2147483647) &&
-    ["empty", "dawn", "four", "islands", "war", "observe"].includes(w.preset)
+    ["empty", "dawn", "four", "islands", "war", "observe"].includes(w.preset) &&
+    validateLife(w)
   );
 }
