@@ -37,6 +37,29 @@ function run(w: World, n: number) {
   for (let i = 0; i < n; i++) step(w);
 }
 describe("움직이는 문명과 발전", () => {
+  it("does not crash if a nation's only city is captured before armies update", () => {
+    const w = world();
+    const original = w.life!.settlements.find((c) => c.nation === 1)!;
+    // The settlement switches owner when citizens are synchronized.
+    w.tiles[original.tile].owner = 2;
+    w.relations = [{ a: 1, b: 2, score: -0.8, war: true, since: 0 }];
+    expect(() => step(w)).not.toThrow();
+    expect(w.year).toBe(1);
+  });
+  it("removes stale flight endpoints rather than dereferencing a missing city", () => {
+    const w = world();
+    w.life!.flights.push({
+      id: 999999,
+      nation: 1,
+      from: 999998,
+      to: 999997,
+      progress: 0,
+      previousProgress: 0,
+      cargo: 8,
+    });
+    expect(() => step(w)).not.toThrow();
+    expect(w.life!.flights.some((f) => f.id === 999999)).toBe(false);
+  });
   it("주민은 인구에서 생성되고 유효한 경로를 따라 실제 좌표를 바꾼다", () => {
     const w = world(),
       before = w.life!.citizens.map((c) => ({ ...c }));
