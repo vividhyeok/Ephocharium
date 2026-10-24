@@ -1,3 +1,5 @@
+import NationPanel from "./NationPanel";
+import { patchWorld } from "./wire";
 import HistoryOverview from "./HistoryOverview";
 import { DIRECTIONS, developmentGate } from "./progression";
 import { equipmentEra } from "./eras";
@@ -116,6 +118,7 @@ function App() {
     forest: 0.4,
     mountains: 0.07,
     preset: "four",
+    developmentSpeed: "standard",
   });
   const input = useRef<HTMLInputElement>(null);
   const notify = (s: string) => setToast(s);
@@ -125,7 +128,13 @@ function App() {
     });
     worker.current = w;
     w.onmessage = (e) => {
-      if (e.data.world) setWorld(e.data.world);
+      if (e.data.meta)
+        setWorld((previous) =>
+          previous
+            ? patchWorld(previous, e.data.meta, e.data.patches)
+            : previous,
+        );
+      else if (e.data.world) setWorld(e.data.world);
       else if (typeof e.data.clockPhase === "number")
         setWorld((previous) =>
           previous ? { ...previous, clockPhase: e.data.clockPhase } : previous,
@@ -274,7 +283,7 @@ function App() {
   const importWorld = async (file?: File) => {
     if (!file) return;
     try {
-      if (file.size > 15000000) throw Error();
+      if (file.size > 60000000) throw Error();
       const value = JSON.parse(await file.text());
       if (!validate(value)) throw Error();
       worker.current?.postMessage({ type: "load", world: value });
@@ -617,7 +626,7 @@ function App() {
                 목재 <b>{Math.round(tile.wood || 0)}</b>
               </span>
               <span>
-                광물 <b>{Math.round(tile.mineral || 0)}</b>
+                광물 <b>{Math.round(Object.values(tile.deposits||{}).reduce((s,v)=>s+(v||0),0))}</b>
               </span>
               <span>
                 비옥도 <b>{Math.round(tile.fertility * 100)}%</b>
@@ -629,7 +638,7 @@ function App() {
                   name={hoveredPerson.role === "ruler" ? "revolt" : "human"}
                   size={13}
                 />
-                <b>{hoveredPerson.name}</b> · {ROLES[hoveredPerson.role]}
+                <b>{hoveredPerson.role==='ruler'?hoveredPerson.name:ROLES[hoveredPerson.role]+' 집단'}</b>
                 <small>
                   {hoveredPerson.route.length
                     ? "일터로 이동 중"
@@ -644,264 +653,26 @@ function App() {
           </aside>
         )}
         {n && (
-          <aside className="nation-panel">
-            <button
-              className="close"
-              aria-label="국가 정보 닫기"
-              onClick={() => setSelected(0)}
-            >
-              <Icon name="close" size={18} />
-            </button>
-            <span className="eyebrow">
-              왕국의 이야기 {n.alive ? "" : "· 멸망"}
-            </span>
-            <div
-              className="nation-emblem"
-              style={{ color: n.color, background: n.color + "15" }}
-            >
-              <Icon name="nation" size={27} />
-            </div>
-            <h2 style={{ color: n.color }}>{n.name}</h2>
-            <p className="muted">
-              {n.foundedYear !== undefined
-                ? `${n.foundedYear}년 건국`
-                : "건국 시점 미상"}{" "}
-              ·{" "}
-              {n.parentId
-                ? `${world!.nations[n.parentId - 1]?.name}에서 독립`
-                : "독립 국가"}
-            </p>
-            <button
-              className="kingdom-history"
-              onClick={() => setPanel("history")}
-            >
-              ⚔ 전쟁 · ⚑ 동맹과 외교 연표 열람
-            </button>
-            <p>
-              {n.leader} · {Math.floor(n.age)}세 ·{" "}
-              {n.aggression > 0.6
-                ? "정복을 꿈꾸는 지도자"
-                : "번영을 바라는 지도자"}
-            </p>
-            <section className="civilization-card">
-              <div>
-                <span className="era-label">{ERAS[eraOf(n)].name}</span>
-                <b>{cities.length}개 정착지</b>
-              </div>
-              <p>{ERAS[eraOf(n)].description}</p>
-              <small>
-                {developmentGate(world!, n) ||
-                  "현재 경제·안정성에 따라 연구 진행 중"}
-              </small>
-              <p className="muted">
-                발전 방향 ·{" "}
-                {Object.entries(n.tendencies || {})
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 2)
-                  .map(([k]) => DIRECTIONS[k as keyof typeof DIRECTIONS])
-                  .join(" · ")}
-              </p>
-              <div className="era-progress">
-                <i
-                  style={{
-                    width:
-                      (eraOf(n) === ERAS.length - 1
-                        ? 100
-                        : ((n.tech - ERAS[eraOf(n)].threshold) /
-                            (ERAS[eraOf(n) + 1].threshold -
-                              ERAS[eraOf(n)].threshold)) *
-                          100) + "%",
-                  }}
-                />
-              </div>
-              <small>
-                {eraOf(n) === ERAS.length - 1
-                  ? "최종 시대 이후에도 연구·도시·탐사 발전 중"
-                  : "다음 시대 · " + ERAS[eraOf(n) + 1].name}
-              </small>
-              <button
-                onClick={(event) => {
-                  setFocus(n.capital);
-                  moveView("detail");
-                  event.currentTarget
-                    .closest(".nation-panel")
-                    ?.scrollTo({ top: 0 });
-                }}
-              >
-                <Icon name="inspect" size={13} /> 도시 가까이 보기{" "}
-                <Icon name="chevron" size={13} />
-              </button>
-            </section>
-            {polity && (
-              <div className="power-status">
-                <details>
-                  <summary>기반 시설과 연구 자산</summary>
-                  <p>
-                    전력 {polity.energy?.toFixed(1) || 0} · 산업 시설{" "}
-                    {cities
-                      .reduce((sum, c) => sum + (c.industry || 0), 0)
-                      .toFixed(1)}{" "}
-                    · 통신망{" "}
-                    {cities
-                      .reduce((sum, c) => sum + (c.network || 0), 0)
-                      .toFixed(1)}{" "}
-                    · 위성 {polity.satellites || 0} · 탐사 사업{" "}
-                    {polity.probes || 0}
-                  </p>
-                </details>
-                <span>
-                  정치 체제{" "}
-                  <b>
-                    {
-                      {
-                        tribe: "부족 의회",
-                        monarchy: "군주정",
-                        republic: "공화정",
-                        vacuum: "권력 공백",
-                      }[polity.regime]
-                    }
-                  </b>
-                </span>
-                <span>
-                  지도자의 권위 <b>{Math.round(polity.authority * 100)}%</b>
-                </span>
-                <span>
-                  자원 비축{" "}
-                  <b>
-                    목재 {Math.floor(polity.wood)} · 금속{" "}
-                    {Math.floor(polity.metal)}
-                  </b>
-                </span>
-              </div>
-            )}
-            <div className="nation-grid">
-              <span>
-                인구<b>{Math.round(n.population).toLocaleString()}명</b>
-              </span>
-              <span>
-                영토<b>{n.territory}개 구역</b>
-              </span>
-              <span>
-                경제<b>{n.food > n.population ? "풍요로움" : "식량 부족"}</b>
-              </span>
-              <span>
-                안정성
-                <b>
-                  {n.stability > 0.7
-                    ? "평온함"
-                    : n.stability > 0.4
-                      ? "흔들림"
-                      : "위기"}
-                </b>
-              </span>
-            </div>
-            <div className="stability">
-              <i
-                style={{ width: n.stability * 100 + "%", background: n.color }}
-              />
-            </div>
-            <p>
-              외교 ·{" "}
-              {world?.relations.some(
-                (r) => r.war && (r.a === n.id || r.b === n.id),
-              )
-                ? "전쟁 중"
-                : "평화로운 시기"}{" "}
-              {n.protected ? "· 신의 보호" : ""}
-            </p>
-            <div className="nation-treaties">
-              {world?.relations
-                .filter(
-                  (r) => (r.war || r.allied) && (r.a === n.id || r.b === n.id),
-                )
-                .map((r) => (
-                  <details key={`${r.a}-${r.b}`}>
-                    <summary>
-                      {r.war ? "⚔ 전쟁 중" : "⚑ 동맹 중"} ·{" "}
-                      {world.nations[(r.a === n.id ? r.b : r.a) - 1]?.name}
-                    </summary>
-                    <p>
-                      {r.war ? r.since : r.allianceSince}년부터 ·{" "}
-                      {r.reason || "이전 저장의 상세 원인 기록이 없습니다."}
-                    </p>
-                  </details>
-                ))}
-            </div>
-            <p className="muted">
-              군대 장비 ·{" "}
-              {
-                [
-                  "몽둥이 · 창",
-                  "창 · 방패",
-                  "검 · 방패",
-                  "머스킷",
-                  "소총 · 헬멧",
-                  "현대 소총 · 헬멧",
-                ][equipmentEra(n)]
+          <NationPanel
+            world={world!}
+            nation={n}
+            onClose={() => setSelected(0)}
+            onHistory={() => setPanel("history")}
+            onFocus={setFocus}
+            onDetail={() => {
+              setFocus(n.capital);
+              moveView("detail");
+            }}
+            onFront={() => {
+              if (frontline) {
+                setFocus(
+                  Math.floor(frontline.y) * world!.width +
+                    Math.floor(frontline.x),
+                );
+                moveView("detail");
               }
-            </p>
-            <div className="city-activity">
-              <span>
-                주민{" "}
-                {world?.life?.citizens.filter((u) => u.nation === n.id)
-                  .length || 0}
-                개 집단
-              </span>
-              <span>
-                군대{" "}
-                {world?.life?.armies.filter((a) => a.nation === n.id).length ||
-                  0}
-                개 부대
-              </span>
-              <span>
-                항공기{" "}
-                {world?.life?.flights.filter((f) => f.nation === n.id).length ||
-                  0}
-                대
-              </span>
-              {frontline && (
-                <button
-                  onClick={() => {
-                    setFocus(
-                      Math.floor(frontline.y) * world!.width +
-                        Math.floor(frontline.x),
-                    );
-                    moveView("detail");
-                  }}
-                >
-                  <Icon name="war" size={12} />
-                  {frontline.fighting ? "교전 중" : "행군 중"} ·{" "}
-                  {Math.ceil(frontline.strength)}명 — 전선 가까이 보기
-                </button>
-              )}
-            </div>
-            <details>
-              <summary>문명의 흐름 자세히 보기</summary>
-              <p>
-                식량 {Math.round(n.food)} · 재산 {Math.round(n.wealth)}
-                <br />
-                기술 {n.tech.toFixed(2)} · 최대 영토 {n.peak}
-              </p>
-              {n.samples.slice(-5).map((s) => (
-                <div className="sample" key={s.year}>
-                  {s.year}년{" "}
-                  <span>
-                    {s.population}명 · {s.territory}구역
-                  </span>
-                </div>
-              ))}
-            </details>
-            <h3>최근 발자취</h3>
-            {world?.history
-              .filter((e) => e.nations.includes(n.id))
-              .slice(-4)
-              .reverse()
-              .map((e, i) => (
-                <p className="mini-event" key={i}>
-                  <b>{e.year}년</b> {e.text}
-                </p>
-              ))}
-          </aside>
+            }}
+          />
         )}
         <div className="zoom-controls">
           <button
@@ -1140,6 +911,11 @@ function App() {
             </h2>
             {panel === "new" && (
               <>
+                <img
+                  className="creation-panorama"
+                  src="/art/living-valley.png"
+                  alt="Epocharium을 위해 제작한 강 유역과 산업·항만 원화"
+                />
                 <p className="muted">
                   각각의 세계에는 아직 발견하지 못한 가능성이 있습니다.
                 </p>
@@ -1171,6 +947,24 @@ function App() {
                       <option value={160}>크게 · 160</option>
                       <option value={192}>대륙 · 192</option>
                       <option value={256}>광대한 세계 · 256</option>
+                    </select>
+                  </label>
+                  <label>
+                    문명 발전 속도
+                    <select
+                      aria-label="문명 발전 속도"
+                      value={options.developmentSpeed || "standard"}
+                      onChange={(e) =>
+                        setOptions({
+                          ...options,
+                          developmentSpeed: e.target
+                            .value as Options["developmentSpeed"],
+                        })
+                      }
+                    >
+                      <option value="relaxed">느긋하게</option>
+                      <option value="standard">표준</option>
+                      <option value="fast">빠르게</option>
                     </select>
                   </label>
                   <label>
@@ -1268,6 +1062,12 @@ function App() {
                           setPanel(null);
                         }}
                       >
+                        <img
+                          src={`/art/objects/${/전쟁|점령/.test(e.text) ? "war" : /성소|석상/.test(e.text) ? "faith" : /진입/.test(e.text) ? "research" : "nation"}.svg`}
+                          alt=""
+                          width="38"
+                          height="38"
+                        />
                         <b>{e.year}년</b>
                         <span>{e.text}</span>
                         <small>{e.tile !== undefined ? "↗" : ""}</small>
@@ -1395,3 +1195,7 @@ function App() {
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);
+if (import.meta.env.PROD && "serviceWorker" in navigator)
+  window.addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });

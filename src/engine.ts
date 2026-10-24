@@ -1,3 +1,15 @@
+import { validateLiving } from "./livingValidation";
+import { transportYear } from "./transport";
+import { ensureLiving, urbanYear, reconcileLiving } from "./living";
+import { buildGeography } from "./geography";
+import { prepareCulture, culturalName, updateCulture } from "./culture";
+import type {
+  LivingState,
+  Demography,
+  Culture,
+  Inventory,
+  Material,
+} from "./livingTypes";
 import {
   validateProgress,
   prepareProgress,
@@ -32,6 +44,22 @@ import {
 export type Terrain = 0 | 1 | 2 | 3 | 4 | 5; // ocean, sand, grass, forest, mountain, snow
 export type Preset = "empty" | "dawn" | "four" | "islands" | "war" | "observe";
 export interface Tile {
+  baseFertility?: number;
+  elevation?: number;
+  spill?: number;
+  downstream?: number;
+  flow?: number;
+  river?: number;
+  depth?: number;
+  lake?: boolean;
+  moisture?: number;
+  temperature?: number;
+  biome?: string;
+  deposits?: Partial<Inventory>;
+  bridge?: boolean;
+  tunnel?: boolean;
+  rail?: number;
+  mine?: Material;
   t: Terrain;
   owner: number;
   fertility: number;
@@ -43,6 +71,10 @@ export interface Tile {
 }
 export interface Nation {
   id: number;
+  culture?: Culture;
+  demography?: Demography;
+  inventory?: Inventory;
+  airSupport?: { tile: number; until: number };
   tendencies?: Tendencies;
   eraHistory?: { era: number; year: number }[];
   peakYear?: number;
@@ -96,6 +128,8 @@ export interface Effect {
 }
 export interface World {
   version: 1;
+  living?: LivingState;
+  developmentSpeed?: "relaxed" | "standard" | "fast";
   progressRevision?: number;
   clockPhase?: number;
   renderRevision?: number;
@@ -121,6 +155,7 @@ export interface World {
   life?: LifeState;
 }
 export interface Options {
+  developmentSpeed?: "relaxed" | "standard" | "fast";
   seed: number;
   size: number;
   sea: number;
@@ -153,7 +188,7 @@ export const neighbors = (w: World, i: number) =>
     i - w.width,
     i + w.width,
   ].filter((n) => n >= 0 && n < w.tiles.length);
-const land = (t: Tile) => t.t !== 0 && t.t !== 4 && t.t !== 5;
+const land = (t: Tile) => t.t !== 0 && t.t !== 4 && t.t !== 5 && !t.lake;
 export function record(
   w: World,
   text: string,
@@ -197,6 +232,14 @@ export function found(
     samples: [],
   };
   w.nations.push(n);
+  prepareCulture(w, n, false);
+  if (!n.culture!.legacy) {
+    let name = culturalName(n.culture!.id, w.seed + n.id, 2);
+    if (w.nations.some((x) => x.id !== n.id && x.culture?.baseName === name))
+      name += culturalName(n.culture!.id, n.id, 9);
+    n.culture!.baseName = name;
+    n.name = name + " 王国".replace("王国", "왕국");
+  }
   w.tiles[tile].owner = id;
   for (const j of neighbors(w, tile))
     if (land(w.tiles[j]) && !w.tiles[j].owner) w.tiles[j].owner = id;
@@ -211,6 +254,7 @@ export function generate(o: Options): World {
   };
   const w: World = {
     version: 1,
+    developmentSpeed: o.developmentSpeed || "standard",
     progressRevision: 4,
     clockPhase: 0,
     renderRevision: 0,
@@ -272,12 +316,15 @@ export function generate(o: Options): World {
                   : 2;
       w.tiles.push({
         t,
+        elevation:
+          t === 0 ? Math.min(-0.01, h - coast) : Math.max(0.02, h - coast),
         owner: 0,
         fertility: t === 2 ? 0.7 + random(w) * 0.3 : t === 3 ? 0.6 : 0.25,
         ore: random(w),
         damage: 0,
       });
     }
+  ensureLiving(w, true);
   const count = { empty: 0, dawn: 0, four: 4, islands: 4, war: 6, observe: 5 }[
     o.preset
   ];
@@ -326,6 +373,7 @@ export function generate(o: Options): World {
       progress: 0,
     });
   prepareLife(w);
+  ensureLiving(w);
   refreshLife(w);
   if (o.preset === "observe") for (let i = 0; i < 100; i++) step(w);
   return w;
@@ -351,6 +399,7 @@ export function burden(n: Nation) {
 }
 export function step(w: World) {
   prepareProgress(w);
+  ensureLiving(w);
   prepareLife(w);
   w.year++;
   w.renderRevision = (w.renderRevision || 0) + 1;
@@ -365,12 +414,13 @@ export function step(w: World) {
   prepareLife(w);
   const holdings = new Map<number, number[]>();
   w.tiles.forEach((t, i) => {
-    if (t.damage > 0) t.damage = Math.max(0, t.damage - 0.025);
+    if (t.damage > 0 && !w.living) t.damage = Math.max(0, t.damage - 0.025);
     if (t.owner) {
       if (!holdings.has(t.owner)) holdings.set(t.owner, []);
       holdings.get(t.owner)!.push(i);
     }
   });
+  urbanYear(w, holdings);
   for (const n of w.nations.filter((n) => n.alive)) {
     const cells = holdings.get(n.id) || [];
     n.territory = cells.length;
@@ -408,26 +458,7 @@ export function step(w: World) {
       (3 + Math.sqrt(n.tech) * 1.5) *
       effect.food *
       (0.8 + (n.tendencies?.agriculture || 0.2));
-    n.food = clamp(n.food + production - n.population * 0.22, 0, capacity * 4);
     const fed = n.food > n.population * 0.25;
-    const growth = fed
-      ? 0.022 * (1 - n.population / Math.max(10, capacity))
-      : -0.035;
-    n.population = Math.max(0, n.population * (1 + growth));
-    n.wealth = Math.max(
-      0,
-      n.wealth +
-        n.population *
-          0.035 *
-          effect.income *
-          (0.8 + (n.tendencies?.commerce || 0.2)) -
-        cells.length * 0.08 +
-        cells.reduce(
-          (total, i) =>
-            total + w.tiles[i].ore * (1 - w.tiles[i].damage) * 0.025,
-          0,
-        ),
-    );
     advanceResearch(w, n, researchRate(w, n) * (0.9 + random(w) * 0.2));
     updateIndustry(w, n);
     n.stability = clamp(
@@ -436,19 +467,19 @@ export function step(w: World) {
       1,
     );
     n.age += 1;
-    if (n.age > 65 && random(w) < 0.025) {
+    if (
+      n.age > 55 &&
+      random(w) <
+        Math.min(
+          0.2,
+          0.008 +
+            Math.max(0, n.age - (n.demography?.adultLongevity || 75)) * 0.008,
+        )
+    ) {
       n.age = 20 + random(w) * 15;
       n.aggression = 0.2 + random(w) * 0.7;
-      n.leader = [
-        "이안",
-        "아린",
-        "레온",
-        "유나",
-        "서진",
-        "미라",
-        "에온",
-        "라온",
-      ][Math.floor(random(w) * 8)];
+      n.leader = culturalName(n.culture!.id, w.seed + n.id + w.year, 1);
+      n.culture!.reignSince = w.year;
       record(w, n.name + "에 새로운 지도자가 즉위했습니다", [n.id], n.capital);
     }
     const frontier = cells
@@ -510,6 +541,8 @@ export function step(w: World) {
   }
   updateDiplomacy(w);
   updateLife(w, holdings);
+  transportYear(w);
+  updateCulture(w);
   captureAtlas(w);
 }
 export const TOOLS: Record<
@@ -739,6 +772,11 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
           >
         )[tool];
         t.fertility = tool === "land" ? 0.9 : tool === "forest" ? 0.65 : 0.1;
+        t.elevation =
+          tool === "ocean" ? -0.2 : tool === "mountain" ? 0.9 : 0.35;
+        t.baseFertility = t.fertility;
+        t.lake = false;
+        t.river = 0;
         if (!land(t)) t.owner = 0;
         t.wood = tool === "forest" ? 85 : 0;
         if (tool === "ocean") t.mineral = 0;
@@ -750,6 +788,15 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
       if (tool === "resource") {
         t.ore = 1;
         t.mineral = 180;
+        t.deposits = {
+          stone: 180,
+          iron: 160,
+          coal: 140,
+          copper: 80,
+          clay: 80,
+          oil: 60,
+          gold: 20,
+        };
       }
       if (["fire", "meteor", "flood"].includes(tool)) {
         t.damage = tool === "meteor" ? 1 : 0.8;
@@ -770,6 +817,7 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
       n.wealth *= 0.8;
     }
   }
+  if (w.living) reconcileLiving(w);
   if (["fire", "meteor", "flood", "plague"].includes(tool)) {
     w.effects.push({ tile, kind: tool, life: 8 });
     record(
@@ -905,6 +953,7 @@ export function validate(data: unknown): data is World {
     Number.isInteger(w.seed) &&
     finite(w.seed, -2147483648, 2147483647) &&
     ["empty", "dawn", "four", "islands", "war", "observe"].includes(w.preset) &&
+    validateLiving(w) &&
     validateProgress(w) &&
     validateDiplomacy(w) &&
     validateLife(w)

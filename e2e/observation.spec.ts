@@ -163,7 +163,7 @@ test("14개 시대의 픽셀 건축이 실제 렌더러와 게임 화면에 표�
     const x = i % w.width,
       y = Math.floor(i / w.width);
     w.tiles[i].t = x < 2 || x >= 110 || y < 2 || y >= w.height - 2 ? 0 : 2;
-    w.tiles[i].wood = 50;
+    w.tiles[i].lake=false; w.tiles[i].river=0; w.tiles[i].wood = 50;
     w.tiles[i].mineral = 100;
   }
   for (let k = 0; k < 14; k++) {
@@ -222,6 +222,7 @@ test("14개 시대의 픽셀 건축이 실제 렌더러와 게임 화면에 표�
     .filter({ hasText: w.nations[13].name })
     .click();
   await expect(page.locator(".era-label")).toHaveText("행성간 문명");
+  await page.locator(".illustrated-nation details").evaluate(el=>(el as HTMLDetailsElement).open=true);
   await page.getByRole("button", { name: "도시 가까이 보기" }).click();
   await page.screenshot({ path: "test-results/future-city.png" });
   expect(errors).toEqual([]);

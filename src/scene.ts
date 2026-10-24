@@ -1,3 +1,5 @@
+import { drawLivingFacilities, culturalRoof } from "./livingScene";
+import { CULTURES } from "./culture";
 import { equipmentEra } from "./eras";
 import { pixelPerson } from "./PixelPerson";
 import type { World } from "./engine";
@@ -195,12 +197,16 @@ export function building(
     r("#c9dba9", -5, 0, 11, 2);
   }
 }
-export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
+export function drawInfrastructure(
+  ctx: CanvasRenderingContext2D,
+  w: World,
+  detail = 2,
+) {
   const s = w.life;
   if (!s) return;
   w.tiles.forEach((t, i) => {
     const { x, y } = coordinates(w, i);
-    if (t.t !== 0 && (t.mineral || 0) > 1 && t.ore > 0.79) {
+    if (detail > 1 && t.t !== 0 && (t.mineral || 0) > 1 && t.ore > 0.9) {
       ctx.fillStyle = "#647d7940";
       ctx.fillRect(x - 2, y + 1, 6, 2);
       ctx.fillStyle = t.ore > 0.92 ? "#91b4bd" : "#8e9690";
@@ -210,7 +216,7 @@ export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
       ctx.fillRect(x + 1, y - 2, 1, 2);
       ctx.fillRect(x - 2, y, 1, 1);
     }
-    if (!t.owner || (t.road || 0) < 0.15) return;
+    if (detail === 0 || !t.owner || (t.road || 0) < 0.5) return;
     const n = w.nations[t.owner - 1];
     if (!n) return;
     ctx.strokeStyle = eraOf(n) >= 7 ? "#9a9c8b" : "#d1bf86";
@@ -267,7 +273,9 @@ export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
         tx >= w.width ||
         ty < 0 ||
         ty >= w.height ||
-        w.tiles[i].owner !== n.id
+        w.tiles[i].owner !== n.id ||
+        w.tiles[i].t === 4 ||
+        w.tiles[i].lake
       )
         continue;
       building(
@@ -279,9 +287,32 @@ export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
         count,
         count === 0 && c.tile === n.capital,
       );
-      if (++count >= structures) break;
+      if (n.culture) {
+        const shares = c.urban?.influence || n.culture.shares;
+        const ordered = shares
+          .map((value, index) => ({ value, index }))
+          .sort((a, b) => b.value - a.value);
+        const style =
+          ordered[1]?.value > 0.15 && count % 4 === 0
+            ? ordered[1].index
+            : ordered[0].index;
+        culturalRoof(
+          ctx,
+          tx * 8 + 4,
+          ty * 8 + 4,
+          era,
+          style,
+          CULTURES[style].material,
+          count,
+        );
+      }
+      if (
+        ++count >=
+        Math.min(structures, detail === 0 ? 1 : detail === 1 ? 4 : 10)
+      )
+        break;
     }
-    if (era >= 1) {
+    if (era >= 1 && detail > 1) {
       for (const [dx, dy] of [
         [-2, -1],
         [2, -1],
@@ -323,7 +354,9 @@ export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
     ctx.fillStyle = n.color;
     ctx.fillRect(p.x, p.y - 13, 5, 3);
   }
+  drawLivingFacilities(ctx, w);
 }
+
 export const airportPoint = (w: World, c: Settlement) => {
   const p = coordinates(w, c.tile);
   return { x: p.x + 8, y: p.y + 11 };
@@ -426,7 +459,7 @@ export function drawActors(
       ctx.fillStyle = "#e5d4a0";
       ctx.fillRect(pt.x + 15, pt.y - 25, 1, 2);
     }
-  for (const u of s.citizens) {
+  for (const u of zoom < 1.2 ? [] : s.citizens) {
     const n = w.nations[u.nation - 1];
     if (!n?.alive) continue;
     const x = lerp(u.previousX, u.x) * 8,

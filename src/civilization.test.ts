@@ -12,6 +12,8 @@ function world() {
   });
   for (const t of w.tiles) {
     t.t = 2;
+    t.lake = false;
+    t.river = 0;
     t.fertility = 0.9;
     t.damage = 0;
     t.wood = 0;
@@ -53,9 +55,11 @@ describe("움직이는 문명과 발전", () => {
       ),
     ).toBe(true);
     const count = w.life!.citizens.length;
+    const population = w.nations[0].population;
     apply(w, "population", w.nations[0].capital);
     refreshLife(w);
-    expect(w.life!.citizens.length).toBeGreaterThan(count);
+    expect(w.nations[0].population).toBeGreaterThan(population);
+    expect(w.life!.citizens.length).toBeGreaterThanOrEqual(count);
   });
   it("길찾기는 바다와 산, 타국의 영토를 통과하지 않는다", () => {
     const w = world(),
@@ -74,6 +78,7 @@ describe("움직이는 문명과 발전", () => {
     w.tiles[tile].t = 3;
     w.tiles[tile].wood = 80;
     w.tiles[tile].mineral = 80;
+    w.tiles[tile].deposits = { iron: 80 };
     const wood = s.citizens.find(
         (c) => c.nation === 1 && c.role === "woodcutter",
       )!,
@@ -91,12 +96,12 @@ describe("움직이는 문명과 발전", () => {
       if (c.id === wood.id || c.id === miner.id) c.role = "resident";
     step(control);
     const stock = control.life!.polities[0].wood,
-      metal = control.life!.polities[0].metal;
+      metal = control.nations[0].inventory!.iron;
     step(w);
     expect(w.tiles[tile].wood).toBeLessThan(80);
     expect(w.tiles[tile].mineral).toBeLessThan(80);
     expect(s.polities[0].wood).toBeGreaterThan(stock);
-    expect(s.polities[0].metal).toBeGreaterThan(metal);
+    expect(w.nations[0].inventory!.iron).toBeGreaterThan(metal);
   });
   it("시대는 연도가 아니라 기술 상태에 따라 바뀌고 건축·공항·비행이 연결된다", () => {
     const w = world();
@@ -147,6 +152,7 @@ describe("움직이는 문명과 발전", () => {
   it("기존 저장 세계를 보존하면서 주민과 자원 상태를 초기화한다", () => {
     const w = world();
     delete w.life;
+    delete w.living;
     for (const t of w.tiles) {
       delete t.wood;
       delete t.mineral;

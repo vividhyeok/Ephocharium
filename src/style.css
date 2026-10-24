@@ -2449,3 +2449,453 @@ input[type="checkbox"] {
   margin: 0;
   color: #d9d4b3;
 }
+.pixel-icon {
+  image-rendering: pixelated;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.creation-panorama {
+  width: 100%;
+  max-height: 190px;
+  object-fit: cover;
+  border-radius: 12px;
+  margin: 8px 0 22px;
+}
+.illustrated-nation {
+  width: 390px !important;
+  padding: 0 16px 20px !important;
+  background: #183c3ff7 !important;
+  max-height: calc(100% - 160px) !important;
+}
+.illustrated-nation .close {
+  position: sticky;
+  top: 8px;
+  float: right;
+  margin: 8px 0 -44px;
+  z-index: 4;
+  background: #183d3fde;
+}
+.nation-skyline {
+  margin: 0 -16px 16px;
+  position: relative;
+  background: #96aa8d;
+}
+.nation-skyline > img {
+  width: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+.nation-skyline figcaption {
+  background: linear-gradient(transparent, #12393cf5);
+  padding: 38px 20px 16px;
+  position: relative;
+  margin-top: -48px;
+}
+.nation-skyline h2 {
+  font-size: 25px !important;
+  margin: 7px 0 !important;
+  text-shadow: 0 2px #123337;
+}
+.nation-skyline small {
+  color: #c0d0b9;
+  font-size: 11px;
+}
+.illustrated-metrics {
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 7px !important;
+  margin: 0 0 12px !important;
+}
+.illustrated-metrics > span {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: #2b555044;
+  border: 1px solid #799b7444;
+  border-radius: 10px;
+  padding: 8px 3px;
+  font-size: 10px !important;
+}
+.illustrated-metrics img {
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+}
+.illustrated-metrics b {
+  font-size: 14px !important;
+  margin: 3px 0;
+}
+.illustrated-metrics small {
+  font-size: 8px;
+  line-height: 1.4;
+  color: #a9c3ad;
+}
+.cohort-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #274c4540;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+.cohort-card > img {
+  width: 44px;
+  image-rendering: pixelated;
+}
+.cohort-card > div {
+  flex: 1;
+}
+.cohort-bar {
+  height: 12px;
+  display: flex;
+  margin: 8px 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cohort-bar i:nth-child(1) {
+  background: #bdc48a;
+}
+.cohort-bar i:nth-child(2) {
+  background: #80b29a;
+}
+.cohort-bar i:nth-child(3) {
+  background: #b7a48a;
+}
+.cohort-card small {
+  font-size: 9px;
+  line-height: 1.5;
+  color: #b7c5ad;
+}
+.nation-causes h3 {
+  font-size: 12px;
+  margin: 18px 0 10px;
+  color: #ddcd9c;
+}
+.nation-causes article {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #70977833;
+}
+.nation-causes img {
+  width: 42px;
+  height: 42px;
+  image-rendering: pixelated;
+}
+.nation-causes b {
+  font-size: 10px;
+  display: block;
+}
+.nation-causes small {
+  font-size: 9px;
+  display: block;
+  color: #a9c0ad;
+  margin-top: 4px;
+}
+.nation-mini-map {
+  position: relative;
+  margin: 16px 0;
+}
+.nation-mini-map canvas {
+  width: 100%;
+  max-height: 190px;
+  object-fit: contain;
+  background: #264f4e;
+  border-radius: 9px;
+  image-rendering: pixelated;
+}
+.nation-mini-map button {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  font-size: 10px;
+  background: #173b3ce8;
+  color: #d8cd9d;
+  border: 1px solid #83a38155;
+  border-radius: 7px;
+  padding: 6px 10px;
+}
+.city-role-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 7px;
+}
+.city-role-cards button {
+  background: #31564a55;
+  border: 1px solid #72977940;
+  border-radius: 8px;
+  padding: 9px;
+  text-align: left;
+  color: #dfd5aa;
+}
+.city-role-cards img {
+  width: 36px;
+  float: left;
+  margin-right: 7px;
+  image-rendering: pixelated;
+}
+.city-role-cards b {
+  font-size: 10px;
+  display: block;
+}
+.city-role-cards small {
+  font-size: 9px;
+  line-height: 1.5;
+  color: #a6bba7;
+}
+.stock-gallery {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  margin: 16px 0;
+}
+.stock-gallery > div {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  background: #32544633;
+  border-radius: 7px;
+  padding: 7px 2px;
+}
+.stock-gallery img {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+}
+.stock-gallery span {
+  font-size: 8px;
+  color: #b1c5ac;
+}
+.stock-gallery b {
+  font-size: 11px;
+  color: #ded3a5;
+}
+.culture-card {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  gap: 12px;
+  background: #31524633;
+  border: 1px solid #7a977533;
+  border-radius: 9px;
+  margin: 14px 0;
+}
+.culture-card > img {
+  width: 48px;
+  image-rendering: pixelated;
+}
+.culture-card b {
+  display: block;
+  font-size: 12px;
+}
+.culture-card small {
+  display: block;
+  font-size: 9px;
+  color: #a4bda6;
+  margin-top: 6px;
+}
+.illustrated-nation details {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid #70956f40;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #b4c4ae;
+}
+.illustrated-nation summary {
+  cursor: pointer;
+  color: #d5ca97;
+}
+.illustrated-nation details button,
+.front-action {
+  background: #35554b;
+  color: #ded1a2;
+  border: 1px solid #91a37166;
+  border-radius: 7px;
+  padding: 9px;
+  margin: 5px;
+  font-size: 10px;
+}
+.pictured-history {
+  display: grid;
+  gap: 7px;
+}
+.pictured-history button {
+  display: flex;
+  align-items: center;
+  background: #294d4755;
+  color: #cfcea4;
+  border: 1px solid #73947133;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: left;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.pictured-history img {
+  width: 42px;
+  height: 42px;
+  margin-right: 10px;
+  image-rendering: pixelated;
+}
+.pictured-history small {
+  display: block;
+  color: #a2b29a;
+}
+.history-list button > img {
+  image-rendering: pixelated;
+}
+.world-canvas {
+  touch-action: none;
+}
+.map-actions .pixel-icon {
+  width: 18px;
+}
+.illustrated-nation .civilization-card {
+  padding: 12px;
+  margin-top: 16px;
+}
+.illustrated-nation .civilization-card p {
+  font-size: 11px;
+}
+.illustrated-nation .city-activity {
+  font-size: 9px;
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .illustrated-nation {
+    width: 350px !important;
+  }
+  .illustrated-nation small {
+    font-size: 10px;
+  }
+}
+@media (max-width: 600px) {
+  .illustrated-nation {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    height: 68dvh !important;
+    max-height: 68dvh !important;
+    z-index: 25 !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 0 16px 20px !important;
+  }
+  .nation-skyline > img {
+    max-height: 185px;
+    object-fit: cover;
+  }
+  .nation-skyline h2 {
+    font-size: 23px !important;
+  }
+  .illustrated-metrics b {
+    font-size: 16px !important;
+  }
+  .illustrated-nation .close {
+    width: 44px;
+    height: 44px;
+  }
+  .illustrated-nation .city-activity {
+    font-size: 10px;
+  }
+  .nation-causes b {
+    font-size: 12px;
+  }
+  .nation-causes small {
+    font-size: 10px;
+  }
+  .stock-gallery span {
+    font-size: 10px;
+  }
+  .cohort-card small {
+    font-size: 10px;
+  }
+  .city-role-cards b {
+    font-size: 12px;
+  }
+  .city-role-cards small {
+    font-size: 10px;
+  }
+  .illustrated-nation button {
+    min-height: 44px;
+  }
+  .map-actions {
+    max-width: calc(100vw - 180px);
+  }
+  .map-actions button {
+    min-height: 38px;
+  }
+  .map-actions .pixel-icon {
+    width: 18px;
+  }
+  .diplomacy-summary {
+    top: 165px;
+  }
+  .intervention-picker {
+    top: 220px;
+    width: 240px;
+  }
+  .toolbox {
+    max-width: calc(100vw - 20px);
+  }
+  .time-controls button {
+    min-height: 38px;
+  }
+  .zoom-controls button {
+    width: 40px;
+    min-height: 40px;
+  }
+  .event-feed {
+    max-width: calc(100vw - 30px);
+  }
+}
+@media (pointer: coarse) {
+  button,
+  input,
+  select {
+    min-height: 40px;
+  }
+  .toolbox button,
+  .tabs button {
+    touch-action: manipulation;
+  }
+}
+/* Release readability: emblems stay sharp at all display scales. */
+.pixel-icon{image-rendering:auto}
+.categories button{font-size:12px;color:#afc1b5;min-height:44px}
+.tools button{min-width:72px;min-height:70px}
+.tools button>span{height:32px}
+.tools .pixel-icon{width:32px;height:32px}
+.tools small{font-size:11px;color:#b6c8b7}
+.time-controls small{font-size:10px}
+.speeds button{font-size:11px;min-width:27px}
+.illustrated-nation .nation-causes small{line-height:1.6}
+@media(max-width:600px){.categories button{font-size:10px;padding:8px 3px;gap:4px}.categories .pixel-icon{width:14px}.tools button{min-width:58px;min-height:64px;padding:5px 7px}.tools small{font-size:10px}.tools .pixel-icon{width:28px;height:28px}.toolbox{padding:0 7px 8px}.speeds button{min-width:24px;font-size:10px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+.nation-actions{display:flex;gap:8px;margin-bottom:14px}.nation-actions button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:42px;background:#31564b;border:1px solid #789b7b55;border-radius:8px;color:#e0d7b2;font-size:11px}
+/* Compact HUD reserves usable map space on portrait and short landscape displays. */
+.app{min-height:0}
+.illustrated-nation{background:#183c3f!important;z-index:12;animation:none;max-height:calc(100% - 250px)!important}
+@media(max-width:600px){
+ .app{min-height:0}.world-status{width:190px;padding:12px;top:14px}.world-status .year{font-size:28px;margin-top:4px}.world-status .stats{display:flex;justify-content:space-between;margin-top:7px;padding-top:7px}.world-status .stats>span{display:flex;align-items:center;gap:5px}.world-status .stats small,.world-status .living-summary{display:none}.world-status .stats .pixel-icon{width:14px;height:14px}.world-status>.eyebrow{font-size:9px}
+ .diplomacy-summary{top:132px!important;left:14px!important;transform:none!important;gap:4px}.diplomacy-status>button{font-size:10px;padding:7px}
+ .kingdoms-panel{bottom:245px;max-height:114px;overflow:auto;width:150px}.kingdom-list button:nth-child(n+4){display:flex}.kingdom-list button{min-height:40px}.kingdom-info>b{font-size:10px}.kingdom-pop{font-size:10px}.section-caption{font-size:10px}.kingdom-progress{display:none}
+ .illustrated-nation{max-height:68dvh!important}.zoom-controls{bottom:260px}.map-actions{max-width:100px}
+}
+@media(max-height:550px) and (min-width:601px){
+ header{height:48px;padding:0 16px}.brand{font-size:15px}.brand small{display:none}.brand-mark{width:29px;height:29px}.header-world{display:none}
+ .world-status{top:8px;left:12px;width:175px;padding:8px 12px}.world-status>.eyebrow,.living-summary,.stats small{display:none}.year{font-size:26px;margin:0}.stats{margin-top:6px;padding-top:5px}.stats b{font-size:11px}
+ .map-actions{top:8px;right:12px}.map-actions button{font-size:10px;min-height:34px;padding:5px 8px}
+ .kingdoms-panel{top:58px;right:12px;width:174px;max-height:118px;overflow:auto;padding:10px}.kingdom-history{display:none}.kingdom-list button{min-height:36px;padding:4px}.kingdom-info>b{font-size:10px}
+ footer{bottom:10px;left:12px;right:12px;display:flex;align-items:flex-end;gap:12px}.toolbox{order:2;max-width:500px;flex:1;padding:0 8px 5px}.categories{padding:0}.categories button{font-size:10px;min-height:30px;padding:5px 3px}.categories .pixel-icon{width:13px;height:13px}.tools{min-height:45px;padding-top:4px;gap:5px}.tools button{min-height:44px;min-width:56px;padding:3px 6px}.tools button>span{height:23px}.tools .pixel-icon{width:23px;height:23px}.tools small{margin-top:2px;font-size:9px}
+ .time-controls{order:1;min-height:55px;max-width:210px;padding:8px;gap:7px}.time-controls small{font-size:9px}.speeds button{min-width:23px;font-size:10px;padding:4px}.brush{display:none}.time-controls .play{width:30px;height:36px}.event-feed,.event-stack,.atlas-corner,.map-coordinate{display:none}
+ .zoom-controls{bottom:110px;right:12px;left:auto;display:flex;flex-direction:row;padding:3px;z-index:5}.zoom-controls button{width:34px;height:34px}.zoom-controls>span{display:none}.diplomacy-summary{top:107px!important;left:12px!important;transform:none!important}.diplomacy-status>button{font-size:10px;padding:6px}
+ .illustrated-nation{top:8px!important;right:12px!important;width:310px!important;max-height:calc(100% - 20px)!important;z-index:12}.tile-inspector{display:none}
+}
+@media(min-width:601px) and (max-width:900px) and (min-height:551px){.zoom-controls{bottom:270px;z-index:5}.kingdoms-panel{max-height:290px;overflow:auto}}
+.diplomacy-status>button{display:flex;align-items:center;gap:5px}

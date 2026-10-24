@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { World } from "./engine";
 import { TREATY_LABELS } from "./diplomacy";
+import Icon from './Icons';
 
 export default function DiplomacyView({
   world,
@@ -24,7 +25,8 @@ export default function DiplomacyView({
           return (
             <div className="diplomacy-status" key={kind}>
               <button onClick={onOpen}>
-                {kind === "war" ? "⚔ 전쟁" : "⚑ 동맹"} <b>{list.length}</b>
+                <Icon name={kind === 'war' ? 'war' : 'alliance'} size={16}/>
+                {kind === "war" ? "전쟁" : "동맹"} <b>{list.length}</b>
               </button>
               <div className="diplomacy-preview" role="tooltip">
                 <strong>

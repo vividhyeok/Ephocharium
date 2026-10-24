@@ -89,6 +89,7 @@ it("late industry, power, networks, orbit and exploration consume resources and 
   n.food = 100000;
   n.wealth = 100000;
   p.metal = 100;
+  c.urban!.stock.metal = 100;
   p.energy = 5;
   c.industry = 0;
   c.network = 0;
@@ -103,7 +104,17 @@ it("late industry, power, networks, orbit and exploration consume resources and 
   expect(researchRate(w, n)).toBeGreaterThan(0);
   const oldTech = n.tech,
     oldDevelopment = c.development;
-  for (let i = 0; i < 60; i++) step(w);
+  for (let i = 0; i < 60; i++) {
+    n.stability = 1;
+    for (const city of w.life!.settlements.filter((x) => x.nation === n.id)) {
+      if (!city.urban) continue;
+      city.urban!.stock.food = 100000;
+      city.urban!.stock.coal = 100;
+    }
+    n.food =
+      100000 * w.life!.settlements.filter((x) => x.nation === n.id).length;
+    step(w);
+  }
   expect(n.tech).toBeGreaterThan(oldTech);
   expect(c.development).toBeGreaterThan(oldDevelopment);
   expect(validate(w)).toBe(true);

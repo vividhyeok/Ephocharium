@@ -1,4 +1,5 @@
 import type { World, Tile } from "./engine";
+import { buildGeography } from "./geography";
 import { nationName, nationColor } from "./identity";
 export function coldPatch(
   seed: number,
@@ -117,6 +118,15 @@ export function upgradeWorld(w: World) {
   w.width = width;
   w.height = height;
   w.tiles = tiles;
+  if (w.living) {
+    for (const r of w.living.routes) r.path = r.path.map(tileIndex);
+    for (const v of w.living.vehicles) v.path = v.path.map(tileIndex);
+    for (const m of w.living.monuments) m.tile = tileIndex(m.tile);
+    for (const c of w.life?.settlements || [])
+      if (c.urban && c.urban.portTile >= 0)
+        c.urban.portTile = tileIndex(c.urban.portTile);
+    buildGeography(w);
+  }
   w.cartographyRevision = 2;
   return w;
 }

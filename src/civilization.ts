@@ -1,3 +1,6 @@
+import { supplyFactor, populationLoss } from "./militaryLogistics";
+import type { CityData } from "./livingTypes";
+import { consumeNation, creditNation, extract } from "./resources";
 import { random, neighbors, record, type World, type Nation } from "./engine";
 
 export { ERAS, eraOf, housingCapacity } from "./eras";
@@ -45,6 +48,7 @@ export interface Settlement {
   homes: number;
   development: number;
   airport: boolean;
+  urban?: CityData;
   industry?: number;
   network?: number;
 }
@@ -94,7 +98,10 @@ export interface LifeState {
 }
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const canWalk = (w: World, i: number) =>
-  !!w.tiles[i] && ![0, 4, 5].includes(w.tiles[i].t);
+  !!w.tiles[i] &&
+  !w.tiles[i].lake &&
+  ((w.tiles[i].river || 0) <= 1.5 || !!w.tiles[i].bridge) &&
+  ![0, 4, 5].includes(w.tiles[i].t);
 const point = (w: World, tile: number) => ({
   x: (tile % w.width) + 0.5,
   y: Math.floor(tile / w.width) + 0.5,
@@ -230,6 +237,14 @@ function syncCitizens(w: World, owned: Map<number, number[]>) {
   s.peoplePerAgent = Math.max(5, Math.ceil(pop / 900));
   s.settlements = s.settlements.filter((c) => w.nations[c.nation - 1]?.alive);
   for (const c of s.settlements) {
+    if (
+      w.living &&
+      w.tiles[c.tile].owner &&
+      w.tiles[c.tile].owner !== c.nation
+    ) {
+      c.nation = w.tiles[c.tile].owner;
+      if (c.urban) c.urban.damage = Math.min(1, c.urban.damage + 0.3);
+    }
     if (w.tiles[c.tile].owner !== c.nation) {
       const next = (owned.get(c.nation) || [])[0];
       if (next !== undefined) c.tile = next;
@@ -423,7 +438,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     }
     const airports: Settlement[] = [];
     for (const c of cities) {
-      c.population = n.population / cities.length;
+      if (!w.living) c.population = n.population / cities.length;
       c.development = clamp(
         c.development +
           (n.food > n.population ? 0.04 : 0) +
@@ -456,6 +471,8 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
         polity.wood >= 2 &&
         (era < 7 || polity.metal >= 1)
       ) {
+        if (w.living && !consumeNation(w, n, "timber", 2)) continue;
+        if (w.living && era >= 7 && !consumeNation(w, n, "metal", 1)) continue;
         c.homes++;
         polity.wood -= 2;
         if (era >= 7) polity.metal -= 1;
@@ -536,11 +553,23 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
           if (u.role === "woodcutter" && (t.wood || 0) > 0) {
             t.wood = Math.max(0, (t.wood || 0) - 0.8);
             ctx.polity.wood += 0.8;
+            if (w.living) creditNation(w, n, "timber", 0.8);
             n.wealth += 0.15;
           }
           if (u.role === "miner" && (t.mineral || 0) > 0) {
             t.mineral = Math.max(0, (t.mineral || 0) - 0.5);
             ctx.polity.metal += 0.5;
+            if (w.living) {
+              const kind =
+                t.deposits &&
+                Object.keys(t.deposits).find(
+                  (k) => (t.deposits![k as keyof typeof t.deposits] || 0) > 0,
+                );
+              if (kind) {
+                t.mine = kind as any;
+                creditNation(w, n, kind as any, extract(t, kind as any, 0.5));
+              }
+            }
             n.wealth += 0.35;
           }
           if (u.role === "builder") {
@@ -699,14 +728,21 @@ function updateArmies(
           Math.hypot(other.x - a.x, other.y - a.y) < 2.5,
       )
       .reduce((total, other) => total + other.strength * 0.2, 0);
-    const supply = 1 / (1 + distance(w, n.capital, tile) / 40),
+    const supply =
+        (w.living ? supplyFactor(w, n, tile) : 1) /
+        (1 + distance(w, n.capital, tile) / 40),
       terrain = w.tiles[tile].t === 3 ? 1.3 : 1;
     const attack =
         a.strength *
         (1 + Math.sqrt(n.tech) * 0.4) *
         (0.8 + (n.tendencies?.military || 0.2)) *
         (0.4 + ctx.polity.authority * 0.6) *
-        supply,
+        supply *
+        (n.airSupport &&
+        n.airSupport.until >= w.year &&
+        distance(w, n.airSupport.tile, tile) < 4
+          ? 1.2
+          : 1),
       defense =
         ((enemy.population / Math.max(1, enemy.territory)) * 1.8 + allied) *
         (1 + Math.sqrt(enemy.tech) * 0.38) *
@@ -716,14 +752,19 @@ function updateArmies(
       Math.max(0.2, defense * 0.03) * (0.7 + random(w) * 0.6),
     );
     a.strength -= loss;
-    n.population = Math.max(0, n.population - loss * 0.7);
+    populationLoss(w, n, loss * 0.7);
     if (!enemy.protected)
-      enemy.population = Math.max(
-        0,
-        enemy.population - Math.max(0.1, attack * 0.018),
-      );
+      populationLoss(w, enemy, Math.max(0.1, attack * 0.018));
     a.siege += (attack / Math.max(1, attack + defense)) * 0.8;
     w.tiles[tile].damage = Math.min(0.8, w.tiles[tile].damage + 0.03);
+    w.tiles[tile].road = Math.max(0, (w.tiles[tile].road || 0) - 0.04);
+    w.tiles[tile].rail = Math.max(0, (w.tiles[tile].rail || 0) - 0.04);
+    for (const city of s.settlements)
+      if (city.urban && distance(w, city.tile, tile) < 2) {
+        city.urban.damage = Math.min(1, city.urban.damage + 0.03);
+        if (city.urban.damage > 0.4 && w.year % 4 === 0)
+          city.homes = Math.max(1, city.homes - 1);
+      }
     w.effects.push({ tile, kind: "전투", life: 2 });
     if (a.siege > 1.8 && a.strength > 3 && !enemy.protected) {
       w.tiles[tile].owner = n.id;
@@ -761,6 +802,14 @@ function updateFlights(w: World) {
       continue;
     const from = airports[0],
       to = airports[1 + Math.floor(random(w) * (airports.length - 1))];
+    if (
+      w.living &&
+      (!from.urban ||
+        from.urban.stock.food < 8 ||
+        !consumeNation(w, n, "oil", 0.15))
+    )
+      continue;
+    if (w.living) from.urban!.stock.food -= 8;
     n.wealth -= 3;
     s.flights.push({
       id: s.nextId++,
@@ -788,14 +837,28 @@ function updateFlights(w: World) {
     );
     if (f.progress >= 1) {
       const n = w.nations[f.nation - 1];
-      n.wealth += f.cargo;
+      if (w.living && b.urban) b.urban.stock.food += f.cargo;
+      n.wealth += f.cargo * 0.2;
       const from = f.from;
       f.from = f.to;
       f.to = from;
       f.progress = 0;
       f.previousProgress = 0;
       n.wealth = Math.max(0, n.wealth - 3);
+      if (w.living) {
+        if (
+          !b.urban ||
+          b.urban.stock.food < 8 ||
+          !consumeNation(w, n, "oil", 0.15)
+        )
+          f.cargo = 0;
+        else {
+          b.urban.stock.food -= 8;
+          f.cargo = 8;
+        }
+      }
     }
+    if (w.living) s.flights = s.flights.filter((f) => f.cargo > 0);
   }
 }
 export function validateLife(w: World): boolean {

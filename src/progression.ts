@@ -1,3 +1,4 @@
+import { consumeNation, stockNation } from "./resources";
 import { enrichEvent } from "./history";
 import type { World, Nation } from "./engine";
 import { ERAS, eraOf } from "./eras";
@@ -115,14 +116,19 @@ export function researchRate(w: World, n: Nation) {
     (r) => r.allied && (r.a === n.id || r.b === n.id),
   ).length;
   return (
-    ((0.014 *
+    (((w.developmentSpeed === "relaxed"
+      ? 0.55
+      : w.developmentSpeed === "fast"
+        ? 1.8
+        : 1) *
+      0.032 *
       (0.25 + economy * 0.3 + population * 0.25 + resources * 0.2) *
-      (0.35 + n.stability * 0.65) *
+      (0.5 + n.stability * 0.5) *
       (n.food > n.population * 0.25 ? 1 : 0.25) *
       (0.65 + (n.tendencies?.research || 0.2) * 2) *
       (1 + Math.min(0.6, exchange * 0.12)) *
       (1 + Math.min(0.3, (p?.satellites || 0) * 0.015))) /
-      (1 + Math.pow(n.tech / 32, 1.15))) *
+      (1 + Math.pow(n.tech / 110, 0.75))) *
     (war ? 0.65 : 1)
   );
 }
@@ -146,6 +152,53 @@ export function updateIndustry(w: World, n: Nation) {
   const investment =
     n.wealth > 30 && n.food > n.population * 0.15 && n.stability > 0.3;
   const target = e >= 8 ? (e - 7) * 0.7 + n.tech * 0.005 : e >= 7 ? 0.35 : 0;
+  if (w.living) {
+    const growth = investment
+      ? 0.005 * (0.5 + Math.min(2, (n.inventory?.metal || 0) / 20))
+      : -0.01;
+    for (const c of cities) {
+      c.industry = Math.max(
+        0,
+        Math.min(
+          1 + (e - 7) * 0.3,
+          (c.industry || 0) +
+            (e >= 7 && investment && consumeNation(w, n, "metal", 0.008)
+              ? growth
+              : 0),
+        ),
+      );
+      c.network = Math.max(
+        0,
+        Math.min(
+          e >= 10 ? 1 + (e - 10) * 0.4 : 0,
+          (c.network || 0) + (e >= 10 && investment ? 0.006 : -0.003),
+        ),
+      );
+      n.wealth += (c.network || 0) * 0.25;
+    }
+    if (
+      e >= 12 &&
+      investment &&
+      (p.energy || 0) > 1 &&
+      (p.satellites || 0) < Math.floor((n.tech - 190) / 10) &&
+      consumeNation(w, n, "metal", 12)
+    ) {
+      p.satellites = (p.satellites || 0) + 1;
+      n.wealth = Math.max(0, n.wealth - 100);
+    }
+    if (
+      e >= 13 &&
+      investment &&
+      (p.probes || 0) < Math.floor((n.tech - 290) / 20) &&
+      consumeNation(w, n, "metal", 25)
+    ) {
+      p.probes = (p.probes || 0) + 1;
+      n.wealth = Math.max(0, n.wealth - 300);
+    }
+    n.wealth += (p.satellites || 0) * 0.1 + (p.probes || 0) * 0.4;
+    stockNation(w, n);
+    return;
+  }
   p.energy = clamp(
     p.energy + (investment ? 0.008 : -0.012) * (1 + e * 0.1),
     0,

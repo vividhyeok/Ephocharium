@@ -280,7 +280,7 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     preset: "empty",
   });
   for (const t of w.tiles) {
-    t.t = 2;
+    t.t = 2; t.lake=false; t.river=0;
     t.fertility = 0.9;
     t.ore = 0.8;
     t.wood = 0;
@@ -302,7 +302,7 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     n.aggression = 0.2;
   }
   refreshLife(w);
-  for (let i = 0; i < 180; i++) step(w);
+  for (let i = 0; i < 180; i++) { for(const c of w.life!.settlements) if(c.urban) c.urban.stock.oil=100; step(w); }
   expect(w.life!.flights.length).toBeGreaterThan(0);
   await page.goto("/");
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
@@ -319,6 +319,7 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     .filter({ hasText: w.nations[0].name })
     .click();
   await expect(page.locator(".era-label")).toHaveText("정보 문명");
+  await page.locator(".illustrated-nation details").evaluate(el=>(el as HTMLDetailsElement).open=true);
   await page.getByRole("button", { name: "도시 가까이 보기" }).click();
   await expect(page.locator(".city-activity")).toContainText("항공기 1대");
   await page.screenshot({ path: "test-results/aviation-city.png" });
@@ -365,7 +366,7 @@ test("전선에서 군대를 확인하고 평화 능력으로 즉시 해산시�
     preset: "empty",
   });
   for (const t of w.tiles) {
-    t.t = 2;
+    t.t = 2; t.lake=false; t.river=0;
     t.fertility = 0.9;
     t.wood = 0;
     t.mineral = 0;

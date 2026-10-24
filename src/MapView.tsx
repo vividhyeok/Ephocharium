@@ -1,3 +1,5 @@
+import { drawTerrain } from "./terrainArt";
+import { drawHydrology, drawTransport } from "./livingScene";
 import { useEffect, useRef } from "react";
 import type { World } from "./engine";
 import { drawInfrastructure, drawActors } from "./scene";
@@ -33,11 +35,16 @@ export default function MapView(props: Props) {
   const camera = useRef({ x: 0, y: 0, zoom: 1, ready: false });
   useEffect(() => {
     const el = canvas.current!;
+    const dpr = Math.min(
+      window.devicePixelRatio,
+      matchMedia("(pointer:coarse)").matches ? 1.5 : 2,
+    );
     let ctx = el.getContext("2d")!;
     const raster = document.createElement("canvas");
     let cachedWorld: World | undefined;
     let cachedPolitical: boolean | undefined;
     let cachedRevision: number | undefined;
+    let cachedDetail = -1;
     let cachedEpoch: number | undefined;
     let frame = 0;
     let down = false;
@@ -52,8 +59,8 @@ export default function MapView(props: Props) {
     let snapshotTime = performance.now();
     const resize = () => {
       const r = el.getBoundingClientRect();
-      el.width = Math.round(r.width * devicePixelRatio);
-      el.height = Math.round(r.height * devicePixelRatio);
+      el.width = Math.round(r.width * dpr);
+      el.height = Math.round(r.height * dpr);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(el);
@@ -77,7 +84,24 @@ export default function MapView(props: Props) {
         lastTile = i;
       }
     };
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinched = false;
+    const touchDistance = () => {
+      const p = [...touches.values()];
+      return p.length > 1 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0;
+    };
     const pointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        el.setPointerCapture(e.pointerId);
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.size === 1) {
+          down = true;
+          drag = true;
+          pinched = false;
+          origin = last = { x: e.clientX, y: e.clientY };
+        } else pinched = true;
+        return;
+      }
       el.setPointerCapture(e.pointerId);
       down = true;
       singleClick = ["war", "alliance", "peace"].includes(latest.current.tool);
@@ -91,6 +115,32 @@ export default function MapView(props: Props) {
       }
     };
     const move = (e: PointerEvent) => {
+      if (e.pointerType === "touch" && touches.has(e.pointerId)) {
+        const before = touchDistance();
+        touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.size > 1) {
+          const after = touchDistance(),
+            p = [...touches.values()],
+            r = el.getBoundingClientRect(),
+            x = (p[0].x + p[1].x) / 2 - r.left,
+            y = (p[0].y + p[1].y) / 2 - r.top,
+            c = camera.current,
+            z = c.zoom;
+          c.zoom = Math.max(
+            0.15,
+            Math.min(18, (z * after) / Math.max(1, before)),
+          );
+          c.x = x - ((x - c.x) * c.zoom) / z;
+          c.y = y - ((y - c.y) * c.zoom) / z;
+          return;
+        }
+        if (down) {
+          camera.current.x += e.clientX - last.x;
+          camera.current.y += e.clientY - last.y;
+          last = { x: e.clientX, y: e.clientY };
+        }
+        return;
+      }
       hover = locate(e);
       latest.current.onHover(hover);
       if (!down) return;
@@ -101,6 +151,33 @@ export default function MapView(props: Props) {
       } else if (!singleClick) use(hover);
     };
     const up = (e: PointerEvent) => {
+      if (e.pointerType === "touch") {
+        touches.delete(e.pointerId);
+        if (
+          !pinched &&
+          e.type !== "pointercancel" &&
+          Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < 7
+        ) {
+          const i = locate(e);
+          if (i >= 0) {
+            const p = latest.current;
+            if (p.tool === "inspect") p.onSelect(p.world.tiles[i].owner);
+            else {
+              p.onStroke(true);
+              p.onUse(i);
+              p.onStroke(false);
+            }
+            p.onHover(i);
+          }
+        }
+        down = touches.size > 0;
+        if (down) {
+          const p = [...touches.values()][0];
+          last = { x: p.x, y: p.y };
+        }
+        if (!touches.size) pinched = false;
+        return;
+      }
       if (drag && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < 5) {
         const i = locate(e);
         if (i >= 0)
@@ -116,7 +193,7 @@ export default function MapView(props: Props) {
         z = c.zoom;
       const x = e.clientX - r.left,
         y = e.clientY - r.top;
-      c.zoom = Math.max(0.4, Math.min(18, z * Math.exp(-e.deltaY * 0.001)));
+      c.zoom = Math.max(0.15, Math.min(18, z * Math.exp(-e.deltaY * 0.001)));
       c.x = x - ((x - c.x) * c.zoom) / z;
       c.y = y - ((y - c.y) * c.zoom) / z;
     };
@@ -129,8 +206,9 @@ export default function MapView(props: Props) {
     const draw = () => {
       const { world: w, political, tool, radius } = latest.current;
       const c = camera.current;
-      const width = el.width / devicePixelRatio,
-        height = el.height / devicePixelRatio;
+      el.dataset.zoom=c.zoom.toFixed(3);
+      const width = el.width / dpr,
+        height = el.height / dpr;
       const key =
         w.seed +
         ":" +
@@ -149,13 +227,13 @@ export default function MapView(props: Props) {
         c.ready = true;
         dims = key;
       }
-      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = "#397b87";
       ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.scale(c.zoom, c.zoom);
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = c.zoom < 2;
       const time = performance.now() / 1000;
       if (snapshot !== w) {
         snapshot = w;
@@ -167,150 +245,17 @@ export default function MapView(props: Props) {
         cachedWorld?.width !== w.width ||
         cachedRevision !== w.renderRevision ||
         (w.renderRevision === undefined && cachedWorld !== w) ||
-        cachedPolitical !== political
+        cachedPolitical !== political ||
+        cachedDetail !== (c.zoom < 0.85 ? 0 : c.zoom < 2 ? 1 : 2)
       ) {
         raster.width = w.width * 8;
         raster.height = w.height * 8;
         const display = ctx;
         ctx = raster.getContext("2d")!;
-        w.tiles.forEach((cell, i) => {
-          const x = (i % w.width) * 8,
-            y = Math.floor(i / w.width) * 8;
-          const noise = ((i * 7919 + w.seed * 17) >>> 0) % 97;
-          const nearLand =
-            cell.t === 0 &&
-            [i - 1, i + 1, i - w.width, i + w.width].some(
-              (j) => w.tiles[j] && w.tiles[j].t !== 0,
-            );
-          const patch =
-            Math.sin(
-              (i % w.width) * 0.27 + Math.sin(Math.floor(i / w.width) * 0.3),
-            ) * Math.cos(Math.floor(i / w.width) * 0.23);
-          ctx.fillStyle =
-            cell.t === 0
-              ? nearLand
-                ? "#70a8a3"
-                : patch > 0.2
-                  ? "#4b9098"
-                  : patch < -0.5
-                    ? "#3e818f"
-                    : PALETTE[0]
-              : cell.t === 2
-                ? patch > 0.35
-                  ? "#b2c380"
-                  : patch < -0.3
-                    ? "#a0b574"
-                    : PALETTE[2]
-                : PALETTE[cell.t];
-          ctx.fillRect(x, y, 8, 8);
-          if (noise < 22) {
-            ctx.fillStyle =
-              cell.t === 0
-                ? "#a8d0bd25"
-                : cell.t === 2
-                  ? "#dae1a84d"
-                  : "#ffffff10";
-            ctx.fillRect(
-              x + (noise % 5),
-              y + (noise % 4),
-              cell.t === 0 ? 4 : 2,
-              1,
-            );
-          }
-          if (
-            cell.t === 0 &&
-            [i - 1, i + 1, i - w.width, i + w.width].some(
-              (j) => w.tiles[j] && w.tiles[j].t !== 0,
-            )
-          ) {
-            ctx.fillStyle = "#b4d2b47a";
-            if (w.tiles[i - w.width]?.t !== 0) ctx.fillRect(x, y, 8, 1);
-            if (w.tiles[i + w.width]?.t !== 0) ctx.fillRect(x, y + 7, 8, 1);
-            if (w.tiles[i - 1]?.t !== 0) ctx.fillRect(x, y, 1, 8);
-            if (w.tiles[i + 1]?.t !== 0) ctx.fillRect(x + 7, y, 1, 8);
-          }
-          if (cell.t === 3 && (cell.wood ?? 80) > 4) {
-            ctx.fillStyle = "#526f4b35";
-            ctx.fillRect(x + 3, y + 5, 5, 3);
-            ctx.fillStyle = "#726b43";
-            ctx.fillRect(x + 3, y + 4, 1, 4);
-            ctx.fillStyle = noise < 45 ? "#527c50" : "#62874f";
-            ctx.fillRect(x + 1, y + 1, 5, 5);
-            ctx.fillRect(x, y + 2, 7, 3);
-            ctx.fillStyle = "#789953";
-            ctx.fillRect(x + 1, y + 1, 3, 2);
-            ctx.fillStyle = "#a3b76b";
-            ctx.fillRect(x + 2, y, 2, 1);
-          }
-          if (cell.t === 3 && (cell.wood ?? 80) <= 4) {
-            ctx.fillStyle = "#9b8253";
-            ctx.fillRect(x + 3, y + 5, 3, 2);
-            ctx.fillStyle = "#d6bb83";
-            ctx.fillRect(x + 3, y + 4, 3, 1);
-          }
-          if (cell.t === 4) {
-            ctx.fillStyle = "#526e5d35";
-            ctx.fillRect(x + 2, y + 6, 9, 2);
-            ctx.fillStyle = "#83937f";
-            ctx.beginPath();
-            ctx.moveTo(x, y + 8);
-            ctx.lineTo(x + 4, y - 4);
-            ctx.lineTo(x + 9, y + 8);
-            ctx.fill();
-            ctx.fillStyle = "#b6bea1";
-            ctx.beginPath();
-            ctx.moveTo(x + 4, y - 4);
-            ctx.lineTo(x + 5, y + 8);
-            ctx.lineTo(x, y + 8);
-            ctx.fill();
-            ctx.fillStyle = "#e6e6ce";
-            ctx.fillRect(x + 3, y - 2, 2, 2);
-            ctx.fillRect(x + 2, y, 4, 1);
-          }
-          if (cell.damage > 0) {
-            ctx.fillStyle = "rgba(77,44,30," + cell.damage * 0.65 + ")";
-            ctx.fillRect(x, y, 8, 8);
-          }
-          if (!cell.owner) return;
-          const n = w.nations[cell.owner - 1];
-          if (!n) return;
-          if (political) {
-            ctx.globalAlpha = 0.27;
-            ctx.fillStyle = n.color;
-            ctx.fillRect(x, y, 8, 8);
-            ctx.globalAlpha = 1;
-            ctx.strokeStyle = n.color;
-            ctx.lineWidth = 1.15;
-            ctx.beginPath();
-            if (i % w.width === 0 || w.tiles[i - 1]?.owner !== cell.owner) {
-              ctx.moveTo(x, y);
-              ctx.lineTo(x, y + 8);
-            }
-            if (
-              i % w.width === w.width - 1 ||
-              w.tiles[i + 1]?.owner !== cell.owner
-            ) {
-              ctx.moveTo(x + 8, y);
-              ctx.lineTo(x + 8, y + 8);
-            }
-            if (w.tiles[i - w.width]?.owner !== cell.owner) {
-              ctx.moveTo(x, y);
-              ctx.lineTo(x + 8, y);
-            }
-            if (w.tiles[i + w.width]?.owner !== cell.owner) {
-              ctx.moveTo(x, y + 8);
-              ctx.lineTo(x + 8, y + 8);
-            }
-            ctx.strokeStyle = "#163a3e";
-            ctx.lineWidth = 2.1;
-            ctx.stroke();
-            ctx.strokeStyle = n.color;
-            ctx.lineWidth = 1.05;
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-          }
-        });
-        drawInfrastructure(ctx, w);
+        drawTerrain(ctx, w, political, c.zoom < 0.85 ? 0 : 1);
+        drawHydrology(ctx, w);
+        drawInfrastructure(ctx, w, c.zoom < 0.85 ? 0 : c.zoom < 2 ? 1 : 2);
+        cachedDetail = c.zoom < 0.85 ? 0 : c.zoom < 2 ? 1 : 2;
         ctx = display;
         cachedEpoch = latest.current.worldEpoch;
         cachedRevision = w.renderRevision;
@@ -331,6 +276,18 @@ export default function MapView(props: Props) {
         time,
         c.zoom,
         latest.current.paused,
+      );
+      drawTransport(
+        ctx,
+        w,
+        latest.current.paused
+          ? 1
+          : Math.min(
+              1,
+              (performance.now() - snapshotTime) /
+                (4000 / latest.current.speed),
+            ),
+        c.zoom,
       );
       for (const s of w.settlers) {
         ctx.fillStyle = "#f0d6aa";
@@ -401,15 +358,9 @@ export default function MapView(props: Props) {
             : latest.current.pair?.[1] === n.id
               ? "② "
               : "") +
-          n.name.replace(" 왕국", "") +
-          " · " +
-          ERAS[eraOf(n)].name.replace(" 시대", "") +
-          (w.relations.some((r) => r.war && (r.a === n.id || r.b === n.id))
-            ? " ⚔"
-            : "") +
-          (w.relations.some((r) => r.allied && (r.a === n.id || r.b === n.id))
-            ? " ⚑"
-            : "");
+          (n.culture?.baseName ||
+            n.name.replace(/ 왕국| 연방| 상업 연맹| 성도국/g, "")) +
+          (c.zoom >= 2 ? " · " + ERAS[eraOf(n)].name.replace(" 시대", "") : "");
         const tw = ctx.measureText(label).width;
         if (x + tw < 0 || x - tw > width || y < 0 || y > height) continue;
         if (
@@ -428,7 +379,7 @@ export default function MapView(props: Props) {
         ctx.strokeStyle = n.color + "88";
         ctx.lineWidth = 0.7;
         ctx.stroke();
-        ctx.fillStyle = n.color;
+        ctx.fillStyle = "#eee7d1";
         ctx.fillText(label, x, y + 3);
       }
       frame = requestAnimationFrame(draw);
