@@ -358,6 +358,9 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     const polity = s.polities.find((p) => p.nation === n.id)!,
       era = eraOf(n),
       cities = s.settlements.filter((c) => c.nation === n.id);
+    // A city can change owner within syncCitizens on this same tick.
+    // The surviving nation will receive a replacement settlement next year.
+    if (!cities.length) continue;
     if (era !== polity.era) {
       record(
         w,
@@ -530,6 +533,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
       ctx = contexts.get(u.nation);
     if (!ctx) continue;
     const home = ctx.cities.find((c) => c.id === u.home) || ctx.cities[0];
+    if (!home) continue;
     u.home = home.id;
     if (u.role === "ruler") {
       u.name = n.leader;
@@ -673,6 +677,7 @@ function updateArmies(
           .sort(
             (a, b) => distance(w, a.tile, target) - distance(w, b.tile, target),
           )[0];
+      if (!home) continue;
       const path = findRoute(w, home.tile, target);
       if (!path.length) continue;
       const p = point(w, home.tile);
@@ -786,7 +791,9 @@ function updateFlights(w: World) {
     const a = cities.get(f.from),
       b = cities.get(f.to);
     return (
-      !!a && !!b && a.airport && b.airport && w.nations[f.nation - 1]?.alive
+      !!a && !!b && a.airport && b.airport &&
+      a.nation === f.nation && b.nation === f.nation &&
+      w.nations[f.nation - 1]?.alive
     );
   });
   for (const n of w.nations.filter(
@@ -829,8 +836,9 @@ function updateFlights(w: World) {
       record(w, n.name + "의 첫 항공로 개통", [n.id], from.tile);
   }
   for (const f of s.flights) {
-    const a = cities.get(f.from)!,
-      b = cities.get(f.to)!;
+    const a = cities.get(f.from),
+      b = cities.get(f.to);
+    if (!a || !b) continue; // Defensive against stale loaded routes.
     f.previousProgress = f.progress;
     f.progress += Math.min(
       0.2,
