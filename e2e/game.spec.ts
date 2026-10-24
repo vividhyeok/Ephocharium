@@ -26,20 +26,20 @@ test("세계 → 시간 → 저장 → 내보내기 → 복원 → 관찰 모드
   expect((await download).suggestedFilename()).toContain("epocharium");
   await page.getByLabel("패널 닫기").click();
   await page.getByRole("button", { name: "＋ 새 세계" }).click();
-  await page.getByRole("button", { name: "◯ 빈 세계" }).click();
+  await page.getByRole("button", { name: "빈 세계", exact: true }).click();
   await page.getByRole("button", { name: "✦ 새로운 세계 탄생시키기" }).click();
-  await expect(page.locator(".stats")).toContainText("⚑ 0");
+  await expect(page.locator(".stats b").nth(1)).toHaveText("0");
   await page.getByRole("button", { name: "▣ 저장" }).click();
   await page
     .locator(".save-row")
     .filter({ hasText: "저장 1" })
     .getByRole("button", { name: "불러오기" })
     .click();
-  await expect(page.locator(".stats")).toContainText("⚑ 4");
-  await page.getByRole("button", { name: "◉ 관찰 모드" }).click();
+  await expect(page.locator(".stats b").nth(1)).toHaveText("4");
+  await page.getByRole("button", { name: "관찰 모드" }).click();
   await expect(page.locator(".toolbox")).toHaveCount(0);
   await expect(page.getByLabel("사건 따라가기")).toBeVisible();
-  await page.getByRole("button", { name: "◉ 도구 펼치기" }).click();
+  await page.getByRole("button", { name: "도구 펼치기" }).click();
   await page.keyboard.press("Space");
   await expect(
     page.getByRole("button", { name: "재생", exact: true }),
@@ -63,7 +63,7 @@ test("작은 화면에서 새 세계 설정과 도구를 사용할 수 있다", 
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByLabel("패널 닫기").click();
   await page.getByRole("button", { name: "재해", exact: true }).click();
-  await expect(page.getByRole("button", { name: "☄ 운석" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "운석" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     390,
   );
@@ -72,15 +72,42 @@ test("작은 화면에서 새 세계 설정과 도구를 사용할 수 있다", 
 test("잘못된 세계 파일을 안전하게 거부한다", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "bad.json",
-      mimeType: "application/json",
-      buffer: Buffer.from('{"version":1}'),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "bad.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"version":1}'),
+  });
   await expect(page.getByRole("status")).toContainText("올바른 Epocharium");
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
+});
+test("왕국 목록·미니맵·줌 버튼과 패널 키보드 탐색이 동작한다", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
+  await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
+  await page.getByRole("button", { name: "일시정지", exact: true }).click();
+  await page.locator(".kingdom-list button").first().click();
+  await expect(page.locator(".nation-panel")).toBeVisible();
+  await page.getByLabel("국가 정보 닫기").click();
+  await page.getByLabel("지도 확대", { exact: true }).click();
+  await page.getByLabel("지도 축소", { exact: true }).click();
+  await page.getByLabel("세계 전체 보기").click();
+  await page.getByLabel("미니맵으로 세계 중앙 이동").focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "＋ 새 세계" }).click();
+  await expect(page.getByLabel("패널 닫기")).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(
+    page.getByRole("button", { name: "✦ 새로운 세계 탄생시키기" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("패널 닫기")).toBeFocused();
+  await page.screenshot({ path: "test-results/redesign-modal.png" });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByLabel("세계 전체 보기").click();
+  await page.screenshot({ path: "test-results/redesign-desktop.png" });
 });
 test("자동 저장 후 새로고침하면 동일한 세계를 이어간다", async ({ page }) => {
   await page.goto("/");
@@ -132,13 +159,11 @@ test("성장한 세계에서 지도 선택과 신의 개입이 실제 인구를 
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
   await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "world.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(w)),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "world.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(w)),
+  });
   await expect(page.locator(".year")).toContainText("250");
   const box = (await page.getByLabel("문명 세계 지도").boundingBox())!;
   const z = Math.min(
@@ -159,7 +184,7 @@ test("성장한 세계에서 지도 선택과 신의 개입이 실제 인구를 
     w.nations[0].name,
   );
   const population = Math.round(w.nations[0].population);
-  await page.getByRole("button", { name: "♟♟ 인구 지원", exact: true }).click();
+  await page.getByRole("button", { name: "인구 지원", exact: true }).click();
   await page.mouse.click(x, y);
   await expect(page.locator(".nation-grid")).toContainText(
     (population + 100).toLocaleString() + "명",

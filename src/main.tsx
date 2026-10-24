@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import MapView from "./MapView";
+import Icon, { type IconName } from "./Icons";
+import Minimap from "./Minimap";
+import PresetArt from "./PresetArt";
 import {
   TOOLS,
   validate,
@@ -64,12 +67,27 @@ function App() {
     "new" | "history" | "save" | "help" | null
   >(null);
   const [selected, setSelected] = useState(0);
-  const [focus, setFocus] = useState<number | null>(null);
+  const [focus, updateFocus] = useState<{
+    tile: number;
+    request: number;
+  } | null>(null);
+  const setFocus = (tile: number) =>
+    updateFocus((previous) => ({
+      tile,
+      request: (previous?.request ?? 0) + 1,
+    }));
+  const [viewCommand, setViewCommand] = useState({ action: "fit", id: 0 });
+  const moveView = (action: string) =>
+    setViewCommand((v) => ({ action, id: v.id + 1 }));
   const [toast, setToast] = useState("");
   const [ready, setReady] = useState(false);
-  const [tutorial, setTutorial] = useState(
-    !localStorage.getItem("epocharium-tutorial"),
-  );
+  const [tutorial, setTutorial] = useState(() => {
+    try {
+      return !localStorage.getItem("epocharium-tutorial");
+    } catch {
+      return true;
+    }
+  });
   const [autoCamera, setAutoCamera] = useState(false);
   const [slotList, setSlotList] = useState<
     { key: string; world: World; date: number }[]
@@ -132,6 +150,11 @@ function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).matches("input,select,textarea")) return;
+      if (
+        (e.target as HTMLElement).closest('[role="dialog"]') &&
+        e.key !== "Escape"
+      )
+        return;
       if (e.code === "Space") {
         e.preventDefault();
         ui.set({ paused: !useUI.getState().paused });
@@ -148,6 +171,36 @@ function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+  useEffect(() => {
+    if (!panel) return;
+    const previous = document.activeElement as HTMLElement;
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+    dialog?.querySelector<HTMLButtonElement>("button")?.focus();
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !dialog) return;
+      const controls = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button,input,select,summary,[tabindex="0"]',
+        ),
+      ).filter(
+        (el) => !el.hasAttribute("disabled") && el.getClientRects().length,
+      );
+      const first = controls[0],
+        last = controls.at(-1);
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last?.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      previous?.focus();
+    };
+  }, [panel]);
   useEffect(() => {
     if (autoCamera && ui.observe && world?.history.at(-1)?.tile !== undefined)
       setFocus(world.history.at(-1)!.tile!);
@@ -211,10 +264,12 @@ function App() {
       <header>
         <a className="brand" href="#" aria-label="Epocharium 홈">
           <span className="brand-mark">
-            E<span>✦</span>
+            <Icon name="world" size={25} />
+            <span>✦</span>
           </span>
           <div>
-            EPOCHARIUM<small>작은 세계, 끝없는 역사</small>
+            EPOCH<span className="brand-light">ARIUM</span>
+            <small>문명이 피어나는 작은 우주</small>
           </div>
         </a>
         <div className="header-world">
@@ -223,12 +278,18 @@ function App() {
           <span className="divider" /> 시드 {world?.seed ?? "…"}
         </div>
         <nav>
-          <button onClick={() => setPanel("new")}>＋ 새 세계</button>
-          <button onClick={openSave}>
-            ▣ <span>저장</span>
+          <button
+            className="new-world-button"
+            aria-label="＋ 새 세계"
+            onClick={() => setPanel("new")}
+          >
+            <Icon name="plus" size={15} /> 새 세계
+          </button>
+          <button aria-label="▣ 저장" onClick={openSave}>
+            <Icon name="save" size={16} /> <span>저장</span>
           </button>
           <button onClick={() => setPanel("help")} aria-label="도움말">
-            ?
+            <Icon name="help" size={17} />
           </button>
         </nav>
       </header>
@@ -240,6 +301,7 @@ function App() {
             radius={ui.radius}
             political={ui.political}
             focus={focus}
+            command={viewCommand}
             onSelect={(id) => setSelected(id)}
             onUse={(tile) =>
               worker.current?.postMessage({
@@ -254,22 +316,27 @@ function App() {
           <div className="loading">✦ 세계를 빚고 있습니다…</div>
         )}
         <div className="world-status">
-          <span className="eyebrow">우리 세계의 시간</span>
+          <span className="eyebrow">
+            <span className="status-orbit" /> 세계의 연대기
+          </span>
           <div className="year">
             {world?.year.toLocaleString() ?? 0}
             <small>년</small>
           </div>
           <div className="stats">
             <span>
-              ♟ {population.toLocaleString()}
-              <small>인구</small>
+              <Icon name="population" size={15} />
+              <b>{population.toLocaleString()}</b>
+              <small>살아가는 사람들</small>
             </span>
             <span>
-              ⚑ {alive.length}
+              <Icon name="nation" size={15} />
+              <b>{alive.length}</b>
               <small>왕국</small>
             </span>
             <span className={wars ? "war-count" : ""}>
-              ⚔ {wars}
+              <Icon name="war" size={15} />
+              <b>{wars}</b>
               <small>전쟁</small>
             </span>
           </div>
@@ -280,37 +347,93 @@ function App() {
             title="국가의 영토와 국경 표시"
             onClick={() => ui.set({ political: !ui.political })}
           >
-            ⚑ 국경
+            <Icon name="nation" size={15} /> 국경
           </button>
           <button
             className={ui.observe ? "active" : ""}
             onClick={() => ui.set({ observe: !ui.observe, tool: "inspect" })}
           >
-            ◉ {ui.observe ? "도구 펼치기" : "관찰 모드"}
+            <Icon name="eye" size={15} />{" "}
+            {ui.observe ? "도구 펼치기" : "관찰 모드"}
           </button>
           <button
             title="실제 세계 사건 기록"
             onClick={() => setPanel("history")}
           >
-            ☷ 역사
+            <Icon name="history" size={15} /> 역사
           </button>
         </div>
-        {!ui.observe && (
-          <aside className="world-guide">
-            <span className="eyebrow">살아있는 세계</span>
-            <h1>
-              역사는, 지금도
-              <br />
-              자라고 있습니다.
-            </h1>
+        {!ui.observe && world && (
+          <div className="atlas-corner">
+            <Minimap world={world} onFocus={setFocus} />
             <p>
-              작은 만남이 왕국이 되고,
-              <br />
-              당신의 손끝이 새로운 시대를 엽니다.
+              <Icon name="inspect" size={12} /> 드래그로 탐험 · 휠로 확대
             </p>
-            <div className="guide-rule" />
-            <span>지도를 움직이며 발견해 보세요</span>
-            <small>드래그로 이동 · 휠로 확대</small>
+          </div>
+        )}
+        {!n && !ui.observe && (
+          <aside className="kingdoms-panel">
+            <div className="section-caption">
+              <span>
+                <Icon name="nation" size={14} /> 이 세계의 왕국
+              </span>
+              <small>{alive.length}</small>
+            </div>
+            <div className="kingdom-list">
+              {alive
+                .slice()
+                .sort((a, b) => b.population - a.population)
+                .slice(0, 5)
+                .map((kingdom) => (
+                  <button
+                    key={kingdom.id}
+                    onClick={() => {
+                      setSelected(kingdom.id);
+                      setFocus(kingdom.capital);
+                    }}
+                  >
+                    <span
+                      className="kingdom-flag"
+                      style={{
+                        color: kingdom.color,
+                        background: kingdom.color + "18",
+                      }}
+                    >
+                      <Icon name="nation" size={17} />
+                    </span>
+                    <span className="kingdom-info">
+                      <b>{kingdom.name}</b>
+                      <span className="kingdom-progress">
+                        <i
+                          style={{
+                            width:
+                              Math.max(
+                                8,
+                                (kingdom.population /
+                                  Math.max(
+                                    1,
+                                    ...alive.map((n) => n.population),
+                                  )) *
+                                  100,
+                              ) + "%",
+                            background: kingdom.color,
+                          }}
+                        />
+                      </span>
+                    </span>
+                    <span className="kingdom-pop">
+                      {Math.round(kingdom.population).toLocaleString()}
+                      <small>명</small>
+                    </span>
+                  </button>
+                ))}
+            </div>
+            <button
+              className="kingdom-history"
+              onClick={() => setPanel("history")}
+            >
+              모든 이야기는 역사로 남습니다 <Icon name="chevron" size={13} />
+            </button>
           </aside>
         )}
         {n && (
@@ -320,12 +443,18 @@ function App() {
               aria-label="국가 정보 닫기"
               onClick={() => setSelected(0)}
             >
-              ×
+              <Icon name="close" size={18} />
             </button>
             <span className="eyebrow">
               왕국의 이야기 {n.alive ? "" : "· 멸망"}
             </span>
-            <h2 style={{ color: n.color }}>⚑ {n.name}</h2>
+            <div
+              className="nation-emblem"
+              style={{ color: n.color, background: n.color + "15" }}
+            >
+              <Icon name="nation" size={27} />
+            </div>
+            <h2 style={{ color: n.color }}>{n.name}</h2>
             <p>
               {n.leader} · {Math.floor(n.age)}세 ·{" "}
               {n.aggression > 0.6
@@ -395,13 +524,42 @@ function App() {
               ))}
           </aside>
         )}
-        <div className="compass">
-          N<span>✧</span>
-          <small>새로운 가능성의 바다</small>
+        <div className="zoom-controls">
+          <button
+            aria-label="지도 확대"
+            title="지도 확대"
+            onClick={() => moveView("in")}
+          >
+            <Icon name="plus" />
+          </button>
+          <button
+            aria-label="지도 축소"
+            title="지도 축소"
+            onClick={() => moveView("out")}
+          >
+            <Icon name="minus" />
+          </button>
+          <span />
+          <button
+            aria-label="세계 전체 보기"
+            title="세계 전체 보기"
+            onClick={() => moveView("fit")}
+          >
+            <Icon name="fit" size={16} />
+          </button>
+        </div>
+        <div className="map-coordinate">
+          <Icon name="compass" size={16} />
+          <span>
+            SEED {world?.seed} <b>·</b> 무한한 가능성의 세계
+          </span>
         </div>
         {tutorial && ready && (
           <div className="tutorial">
-            <span>✦ 세계에 오신 것을 환영합니다</span>
+            <div className="welcome-icon">
+              <Icon name="life" size={24} />
+            </div>
+            <span>당신의 세계가 시작되었습니다</span>
             <p>
               왕국을 눌러 이야기를 읽거나, 아래에서 인간을 선택해 땅에
               놓아보세요.
@@ -419,7 +577,9 @@ function App() {
           </div>
         )}
         <div className="event-feed">
-          <span className="event-indicator">✦</span>
+          <span className="event-indicator">
+            <Icon name="history" size={16} />
+          </span>
           <p>
             {world?.history.at(-1) ? (
               <>
@@ -431,7 +591,7 @@ function App() {
             )}
           </p>
           <button onClick={() => setPanel("history")} aria-label="역사 펼치기">
-            ↗
+            <Icon name="arrow" size={16} />
           </button>
         </div>
       </section>
@@ -442,10 +602,13 @@ function App() {
             aria-label={ui.paused ? "재생" : "일시정지"}
             onClick={() => ui.set({ paused: !ui.paused })}
           >
-            {ui.paused ? "▶" : "Ⅱ"}
+            <Icon name={ui.paused ? "play" : "pause"} size={19} />
           </button>
           <div>
-            <small>시간의 흐름</small>
+            <small>
+              <span className={ui.paused ? "paused-dot" : "live-dot"} />
+              {ui.paused ? "시간이 멈췄습니다" : "시간의 흐름"}
+            </small>
             <div className="speeds">
               {[1, 2, 5, 10, 20].map((s) => (
                 <button
@@ -478,6 +641,21 @@ function App() {
                           })
                     }
                   >
+                    <Icon
+                      name={
+                        (
+                          {
+                            생명: "life",
+                            지형: "mountain",
+                            자연: "nature",
+                            재해: "fire",
+                            문명: "nation",
+                            "세계 설정": "settings",
+                          } as Record<string, IconName>
+                        )[c]
+                      }
+                      size={14}
+                    />
                     {c}
                   </button>
                 ),
@@ -490,10 +668,14 @@ function App() {
                   <button
                     key={key}
                     title={v.label + " · " + v.description}
+                    aria-label={v.label}
+                    data-tooltip={v.description}
                     className={ui.tool === key ? "selected" : ""}
                     onClick={() => ui.set({ tool: key })}
                   >
-                    <span>{v.icon}</span>
+                    <span>
+                      <Icon name={key as IconName} size={24} />
+                    </span>
                     <small>{v.label}</small>
                   </button>
                 ))}
@@ -513,7 +695,7 @@ function App() {
           ) : (
             <>
               <label htmlFor="brush">
-                브러시 크기 <b>{ui.radius}</b>
+                <Icon name="settings" size={13} /> 브러시 <b>{ui.radius}</b>
               </label>
               <input
                 id="brush"
@@ -571,10 +753,11 @@ function App() {
                   {PRESETS.map((p) => (
                     <button
                       key={p.id}
+                      aria-label={p.name}
                       className={options.preset === p.id ? "selected" : ""}
                       onClick={() => setOptions({ ...options, preset: p.id })}
                     >
-                      <span>{p.icon}</span>
+                      <PresetArt preset={p.id} />
                       <b>{p.name}</b>
                       <small>{p.description}</small>
                     </button>

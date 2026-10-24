@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
 import type { World } from "./engine";
 const PALETTE = [
-  "#246477",
-  "#d5c391",
-  "#829d61",
-  "#53794d",
-  "#8a9290",
-  "#c6d6cf",
+  "#478b95",
+  "#e3d39e",
+  "#a8bb78",
+  "#91ab69",
+  "#a5ad99",
+  "#d8e2ce",
 ];
 interface Props {
   world: World;
@@ -15,7 +15,8 @@ interface Props {
   political: boolean;
   onUse: (tile: number) => void;
   onSelect: (id: number) => void;
-  focus: number | null;
+  focus: { tile: number; request: number } | null;
+  command: { action: string; id: number };
 }
 export default function MapView(props: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -123,7 +124,7 @@ export default function MapView(props: Props) {
         dims = key;
       }
       ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-      ctx.fillStyle = "#173f4b";
+      ctx.fillStyle = "#397b87";
       ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.translate(c.x, c.y);
@@ -139,48 +140,89 @@ export default function MapView(props: Props) {
           const x = (i % w.width) * 8,
             y = Math.floor(i / w.width) * 8;
           const noise = ((i * 7919 + w.seed * 17) >>> 0) % 97;
-          ctx.fillStyle = PALETTE[cell.t];
-          ctx.fillRect(x, y, 8, 8);
+          const nearLand =
+            cell.t === 0 &&
+            [i - 1, i + 1, i - w.width, i + w.width].some(
+              (j) => w.tiles[j] && w.tiles[j].t !== 0,
+            );
+          const patch =
+            Math.sin(
+              (i % w.width) * 0.27 + Math.sin(Math.floor(i / w.width) * 0.3),
+            ) * Math.cos(Math.floor(i / w.width) * 0.23);
           ctx.fillStyle =
             cell.t === 0
-              ? noise < 45
-                ? "#286c7e"
-                : "#2c7080"
+              ? nearLand
+                ? "#70a8a3"
+                : patch > 0.2
+                  ? "#4b9098"
+                  : patch < -0.5
+                    ? "#3e818f"
+                    : PALETTE[0]
               : cell.t === 2
-                ? noise < 50
-                  ? "#8da76a"
-                  : "#78955d"
-                : cell.t === 3
-                  ? "#608653"
-                  : "#ffffff12";
-          ctx.fillRect(x + (noise % 5), y + (noise % 4), 3, 2);
+                ? patch > 0.35
+                  ? "#b2c380"
+                  : patch < -0.3
+                    ? "#a0b574"
+                    : PALETTE[2]
+                : PALETTE[cell.t];
+          ctx.fillRect(x, y, 8, 8);
+          if (noise < 22) {
+            ctx.fillStyle =
+              cell.t === 0
+                ? "#a8d0bd25"
+                : cell.t === 2
+                  ? "#dae1a84d"
+                  : "#ffffff10";
+            ctx.fillRect(
+              x + (noise % 5),
+              y + (noise % 4),
+              cell.t === 0 ? 4 : 2,
+              1,
+            );
+          }
           if (
             cell.t === 0 &&
             [i - 1, i + 1, i - w.width, i + w.width].some(
               (j) => w.tiles[j] && w.tiles[j].t !== 0,
             )
           ) {
-            ctx.fillStyle = "#62a3a0";
-            ctx.fillRect(x, y, 8, 2);
+            ctx.fillStyle = "#b4d2b47a";
+            if (w.tiles[i - w.width]?.t !== 0) ctx.fillRect(x, y, 8, 1);
+            if (w.tiles[i + w.width]?.t !== 0) ctx.fillRect(x, y + 7, 8, 1);
+            if (w.tiles[i - 1]?.t !== 0) ctx.fillRect(x, y, 1, 8);
+            if (w.tiles[i + 1]?.t !== 0) ctx.fillRect(x + 7, y, 1, 8);
           }
           if (cell.t === 3) {
-            ctx.fillStyle = "#355a40";
-            ctx.fillRect(x + 3, y + 3, 2, 5);
-            ctx.fillStyle = "#456c46";
-            ctx.fillRect(x + 1, y + 2, 6, 3);
-            ctx.fillRect(x + 2, y, 4, 3);
-            ctx.fillStyle = "#78945a";
-            ctx.fillRect(x + 2, y + 1, 2, 1);
+            ctx.fillStyle = "#526f4b35";
+            ctx.fillRect(x + 3, y + 5, 5, 3);
+            ctx.fillStyle = "#726b43";
+            ctx.fillRect(x + 3, y + 4, 1, 4);
+            ctx.fillStyle = noise < 45 ? "#527c50" : "#62874f";
+            ctx.fillRect(x + 1, y + 1, 5, 5);
+            ctx.fillRect(x, y + 2, 7, 3);
+            ctx.fillStyle = "#789953";
+            ctx.fillRect(x + 1, y + 1, 3, 2);
+            ctx.fillStyle = "#a3b76b";
+            ctx.fillRect(x + 2, y, 2, 1);
           }
           if (cell.t === 4) {
-            ctx.fillStyle = "#626f70";
+            ctx.fillStyle = "#526e5d35";
+            ctx.fillRect(x + 2, y + 6, 9, 2);
+            ctx.fillStyle = "#83937f";
             ctx.beginPath();
             ctx.moveTo(x, y + 8);
-            ctx.lineTo(x + 4, y - 3);
+            ctx.lineTo(x + 4, y - 4);
             ctx.lineTo(x + 9, y + 8);
             ctx.fill();
-            ctx.fillStyle = "#c5cebd";
-            ctx.fillRect(x + 3, y, 3, 2);
+            ctx.fillStyle = "#b6bea1";
+            ctx.beginPath();
+            ctx.moveTo(x + 4, y - 4);
+            ctx.lineTo(x + 5, y + 8);
+            ctx.lineTo(x, y + 8);
+            ctx.fill();
+            ctx.fillStyle = "#e6e6ce";
+            ctx.fillRect(x + 3, y - 2, 2, 2);
+            ctx.fillRect(x + 2, y, 4, 1);
           }
           if (cell.damage > 0) {
             ctx.fillStyle = "rgba(77,44,30," + cell.damage * 0.65 + ")";
@@ -190,12 +232,12 @@ export default function MapView(props: Props) {
           const n = w.nations[cell.owner - 1];
           if (!n) return;
           if (political) {
-            ctx.globalAlpha = 0.19;
+            ctx.globalAlpha = 0.13;
             ctx.fillStyle = n.color;
             ctx.fillRect(x, y, 8, 8);
-            ctx.globalAlpha = 0.8;
+            ctx.globalAlpha = 0.85;
             ctx.strokeStyle = n.color;
-            ctx.lineWidth = 0.8;
+            ctx.lineWidth = 0.65;
             ctx.beginPath();
             if (i % w.width === 0 || w.tiles[i - 1]?.owner !== cell.owner) {
               ctx.moveTo(x, y);
@@ -220,22 +262,35 @@ export default function MapView(props: Props) {
             ctx.globalAlpha = 1;
           }
           if (i % 11 === 0 && cell.t === 2) {
-            ctx.fillStyle = "#c1ac68";
+            ctx.fillStyle = "#d7bd77";
             ctx.fillRect(x + 1, y + 2, 6, 5);
-            ctx.fillStyle = "#8f9850";
+            ctx.fillStyle = "#a2a260";
             for (let a = 0; a < 3; a++)
               ctx.fillRect(x + 1 + a * 2, y + 2, 1, 5);
           }
           if (i % 13 === 0 || i === n.capital) {
             const capital = i === n.capital;
-            ctx.fillStyle = "#34443d";
-            ctx.fillRect(x + 2, y + 4, capital ? 8 : 5, 5);
-            ctx.fillStyle = "#eed5a1";
-            ctx.fillRect(x + 1, y + 2, capital ? 8 : 5, 5);
-            ctx.fillStyle = n.color;
-            ctx.fillRect(x, y, capital ? 10 : 7, 3);
-            ctx.fillStyle = "#4b4e43";
+            ctx.fillStyle = "#54644a50";
+            ctx.fillRect(x + 3, y + 5, capital ? 10 : 6, 4);
+            ctx.fillStyle = "#f3e4ba";
+            ctx.fillRect(x + 1, y + 2, capital ? 9 : 5, 5);
+            ctx.fillStyle = "#c1b18d";
+            ctx.fillRect(x + 6, y + 3, capital ? 4 : 1, 4);
+            ctx.fillStyle = noise < 50 ? "#a36c4b" : "#bd8657";
+            ctx.fillRect(x, y + 1, capital ? 11 : 7, 2);
+            ctx.fillRect(x + 1, y, capital ? 9 : 5, 1);
+            ctx.fillStyle = "#635849";
             ctx.fillRect(x + 3, y + 4, 2, 3);
+            ctx.fillStyle = "#fff0b9";
+            ctx.fillRect(x + 6, y + 3, 1, 1);
+            if (capital) {
+              ctx.fillStyle = "#d5d1ad";
+              ctx.fillRect(x, y - 3, 3, 8);
+              ctx.fillRect(x + 8, y - 3, 3, 8);
+              ctx.fillStyle = n.color;
+              ctx.fillRect(x, y - 4, 3, 2);
+              ctx.fillRect(x + 8, y - 4, 3, 2);
+            }
             if (capital) {
               ctx.fillStyle = "#f3df9e";
               ctx.fillRect(x + 4, y - 7, 1, 7);
@@ -324,8 +379,13 @@ export default function MapView(props: Props) {
         )
           continue;
         labels.push({ x, y, width: tw });
-        ctx.fillStyle = "#152c2be6";
-        ctx.fillRect(x - tw / 2 - 9, y - 12, tw + 18, 22);
+        ctx.fillStyle = "#183b3be8";
+        ctx.beginPath();
+        ctx.roundRect(x - tw / 2 - 12, y - 13, tw + 24, 24, 5);
+        ctx.fill();
+        ctx.strokeStyle = n.color + "88";
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
         ctx.fillStyle = n.color;
         ctx.fillText(label, x, y + 3);
       }
@@ -347,11 +407,33 @@ export default function MapView(props: Props) {
     const el = canvas.current!,
       c = camera.current,
       w = props.world;
-    c.x = el.clientWidth / 2 - ((props.focus % w.width) * 8 + 4) * c.zoom;
+    c.x = el.clientWidth / 2 - ((props.focus.tile % w.width) * 8 + 4) * c.zoom;
     c.y =
       el.clientHeight / 2 -
-      (Math.floor(props.focus / w.width) * 8 + 4) * c.zoom;
+      (Math.floor(props.focus.tile / w.width) * 8 + 4) * c.zoom;
   }, [props.focus]);
+  useEffect(() => {
+    const el = canvas.current!,
+      c = camera.current,
+      w = latest.current.world;
+    if (!c.ready) return;
+    if (props.command.action === "fit") {
+      c.zoom = Math.min(
+        (el.clientWidth - 80) / (w.width * 8),
+        (el.clientHeight - 80) / (w.height * 8),
+      );
+      c.x = (el.clientWidth - w.width * 8 * c.zoom) / 2;
+      c.y = (el.clientHeight - w.height * 8 * c.zoom) / 2;
+    } else {
+      const z = c.zoom;
+      c.zoom = Math.max(
+        0.4,
+        Math.min(12, z * (props.command.action === "in" ? 1.3 : 1 / 1.3)),
+      );
+      c.x = el.clientWidth / 2 - ((el.clientWidth / 2 - c.x) * c.zoom) / z;
+      c.y = el.clientHeight / 2 - ((el.clientHeight / 2 - c.y) * c.zoom) / z;
+    }
+  }, [props.command.id]);
   return (
     <canvas ref={canvas} className="world-canvas" aria-label="문명 세계 지도" />
   );
