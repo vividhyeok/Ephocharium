@@ -1,3 +1,4 @@
+import { culturalName } from './culture';
 import { supplyFactor, populationLoss } from "./militaryLogistics";
 import type { CityData } from "./livingTypes";
 import { consumeNation, creditNation, extract } from "./resources";
@@ -423,7 +424,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
         id: s.nextId++,
         nation: n.id,
         tile: far.tile,
-        name: n.name.replace(" 왕국", "") + " " + (cities.length + 1) + "마을",
+        name: culturalName(n.culture?.id || 0, w.seed + w.life!.nextId) + "시",
         population: 0,
         level: 0,
         homes: 2,

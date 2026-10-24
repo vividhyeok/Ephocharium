@@ -1,3 +1,4 @@
+import { settleExpedition } from './frontier';
 import { record, type World } from "./engine";
 import { eraOf } from "./eras";
 import { adjacent, isWater, crossingCost, MinHeap } from "./geography";
@@ -486,6 +487,12 @@ export function transportYear(w: World) {
       continue;
     }
     if (v.progress < span) continue;
+    if (v.purpose === 'colonize') {
+      if (!settleExpedition(w,v)) {
+        v.purpose='migration'; v.path.reverse();v.progress=0;v.previousProgress=0;v.returning=true;
+        continue;
+      }
+    }
     if (v.purpose === "trade") {
       for (const k of MATERIALS) {
         const amount = v.cargo[k] || 0;

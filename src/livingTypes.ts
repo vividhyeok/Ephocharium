@@ -109,6 +109,7 @@ export interface TransportRoute {
   built: number;
 }
 export interface Vehicle {
+  targetTile?: number;
   id: number;
   route: number;
   mode: TransportMode;
@@ -121,7 +122,14 @@ export interface Vehicle {
   previousProgress: number;
   cargo: Partial<Inventory>;
   people?: Cohorts;
-  purpose: "trade" | "migration" | "escort" | "landing" | "support" | "airlift";
+  purpose:
+    | "trade"
+    | "migration"
+    | "escort"
+    | "landing"
+    | "support"
+    | "airlift"
+    | "colonize";
   strength: number;
   returning: boolean;
 }
@@ -138,6 +146,17 @@ export interface Monument {
   preservedBy?: number;
 }
 export interface LivingState {
+  projects?: {
+    id: number;
+    nation: number;
+    city: number;
+    tile: number;
+    kind: "reclamation" | "irrigation";
+    started: number;
+    progress: number;
+    duration: number;
+    status: "building" | "complete" | "abandoned";
+  }[];
   revision: 5;
   geographyRevision: number;
   nextId: number;

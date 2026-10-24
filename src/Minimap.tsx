@@ -1,3 +1,4 @@
+import {politicalColors} from "./politicalColors";
 import { useEffect, useRef } from "react";
 import type { World } from "./engine";
 import Icon from "./Icons";
@@ -19,9 +20,10 @@ export default function Minimap({
       "#8b9685",
       "#c8d4bc",
     ];
+    const bloc=politicalColors(world);
     world.tiles.forEach((t, i) => {
       ctx.fillStyle = t.owner
-        ? world.nations[t.owner - 1]?.color || colors[t.t]
+        ? bloc.get(t.owner) || colors[t.t]
         : colors[t.t];
       ctx.fillRect(i % world.width, Math.floor(i / world.width), 1, 1);
     });

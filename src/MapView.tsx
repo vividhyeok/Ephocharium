@@ -19,6 +19,10 @@ interface Props {
   tool: string;
   radius: number;
   political: boolean;
+  labels: boolean;
+  cities: boolean;
+  diplomacy: boolean;
+  selected: number;
   onUse: (tile: number) => void;
   onSelect: (id: number) => void;
   focus: { tile: number; request: number } | null;
@@ -84,6 +88,11 @@ export default function MapView(props: Props) {
         lastTile = i;
       }
     };
+    const leave = () => {
+      hover = -1;
+      latest.current.onHover(-1);
+    };
+    el.addEventListener("pointerleave", leave);
     const touches = new Map<number, { x: number; y: number }>();
     let pinched = false;
     const touchDistance = () => {
@@ -206,7 +215,7 @@ export default function MapView(props: Props) {
     const draw = () => {
       const { world: w, political, tool, radius } = latest.current;
       const c = camera.current;
-      el.dataset.zoom=c.zoom.toFixed(3);
+      el.dataset.zoom = c.zoom.toFixed(3);
       const width = el.width / dpr,
         height = el.height / dpr;
       const key =
@@ -233,7 +242,7 @@ export default function MapView(props: Props) {
       ctx.save();
       ctx.translate(c.x, c.y);
       ctx.scale(c.zoom, c.zoom);
-      ctx.imageSmoothingEnabled = c.zoom < 2;
+      ctx.imageSmoothingEnabled = false;
       const time = performance.now() / 1000;
       if (snapshot !== w) {
         snapshot = w;
@@ -345,42 +354,162 @@ export default function MapView(props: Props) {
       }
       ctx.restore();
       const labels: { x: number; y: number; width: number }[] = [];
-      for (const n of w.nations
-        .filter((n) => n.alive)
-        .sort((a, b) => b.population - a.population)) {
-        const x = c.x + ((n.capital % w.width) * 8 + 4) * c.zoom,
-          y = c.y + Math.floor(n.capital / w.width) * 8 * c.zoom - 15;
-        ctx.font = "600 11px system-ui";
-        ctx.textAlign = "center";
-        const label =
-          (latest.current.pair?.[0] === n.id
-            ? "① "
-            : latest.current.pair?.[1] === n.id
-              ? "② "
-              : "") +
-          (n.culture?.baseName ||
-            n.name.replace(/ 왕국| 연방| 상업 연맹| 성도국/g, "")) +
-          (c.zoom >= 2 ? " · " + ERAS[eraOf(n)].name.replace(" 시대", "") : "");
-        const tw = ctx.measureText(label).width;
-        if (x + tw < 0 || x - tw > width || y < 0 || y > height) continue;
-        if (
-          labels.some(
-            (l) =>
-              Math.abs(l.y - y) < 25 &&
-              Math.abs(l.x - x) < (l.width + tw) / 2 + 20,
+      const related = latest.current.selected || w.tiles[hover]?.owner;
+      if (latest.current.diplomacy && related) {
+        for (const r of w.relations.filter(
+          (r) => (r.allied || r.war) && (r.a === related || r.b === related),
+        )) {
+          const a = w.nations[r.a - 1],
+            b = w.nations[r.b - 1];
+          if (!a?.alive || !b?.alive) continue;
+          const ax = c.x + ((a.capital % w.width) * 8 + 4) * c.zoom,
+            ay = c.y + (Math.floor(a.capital / w.width) * 8 + 4) * c.zoom,
+            bx = c.x + ((b.capital % w.width) * 8 + 4) * c.zoom,
+            by = c.y + (Math.floor(b.capital / w.width) * 8 + 4) * c.zoom;
+          ctx.strokeStyle = r.war ? "#f18c72" : "#80dfce";
+          ctx.lineWidth = 2;
+          ctx.setLineDash(r.war ? [6, 5] : []);
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 - 36, bx, by);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = ctx.strokeStyle;
+          for (const [x, y] of [
+            [ax, ay],
+            [bx, by],
+          ]) {
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+      }
+      if (latest.current.labels)
+        for (const n of w.nations
+          .filter((n) => n.alive)
+          .sort((a, b) => b.population - a.population)) {
+          const x = c.x + ((n.capital % w.width) * 8 + 4) * c.zoom,
+            y = c.y + Math.floor(n.capital / w.width) * 8 * c.zoom - 15;
+          ctx.font = "600 11px system-ui";
+          ctx.textAlign = "center";
+          const label =
+            (latest.current.pair?.[0] === n.id
+              ? "① "
+              : latest.current.pair?.[1] === n.id
+                ? "② "
+                : "") +
+            (n.culture?.baseName ||
+              n.name.replace(/ 왕국| 연방| 상업 연맹| 성도국/g, "")) +
+            (" · Lv." + (eraOf(n) + 1)) +
+            "";
+          const tw = ctx.measureText(label).width;
+          if (x + tw < 0 || x - tw > width || y < 0 || y > height) continue;
+          if (
+            labels.some(
+              (l) =>
+                Math.abs(l.y - y) < 25 &&
+                Math.abs(l.x - x) < (l.width + tw) / 2 + 20,
+            )
           )
-        )
-          continue;
-        labels.push({ x, y, width: tw });
-        ctx.fillStyle = "#183b3be8";
-        ctx.beginPath();
-        ctx.roundRect(x - tw / 2 - 12, y - 13, tw + 24, 24, 5);
-        ctx.fill();
-        ctx.strokeStyle = n.color + "88";
-        ctx.lineWidth = 0.7;
-        ctx.stroke();
-        ctx.fillStyle = "#eee7d1";
-        ctx.fillText(label, x, y + 3);
+            continue;
+          labels.push({ x, y, width: tw });
+          ctx.fillStyle = "#183b3be8";
+          ctx.beginPath();
+          ctx.roundRect(x - tw / 2 - 12, y - 13, tw + 24, 24, 5);
+          ctx.fill();
+          ctx.strokeStyle = n.color + "88";
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
+          ctx.fillStyle = "#eee7d1";
+          ctx.fillText(label, x, y + 3);
+        }
+      if (latest.current.cities && c.zoom >= 3.5)
+        for (const city of w.life?.settlements || []) {
+          if (city.population < 1 || (related && city.nation !== related))
+            continue;
+          const x = c.x + ((city.tile % w.width) * 8 + 4) * c.zoom,
+            y = c.y + (Math.floor(city.tile / w.width) * 8 + 8) * c.zoom + 16;
+          ctx.font = "500 11px system-ui";
+          ctx.textAlign = "center";
+          const label = city.name.replace(/.* (\d+)마을$/, "$1번 도시"),
+            tw = ctx.measureText(label).width;
+          if (
+            x + tw < 0 ||
+            x - tw > width ||
+            y < 0 ||
+            y > height ||
+            labels.some(
+              (l) =>
+                Math.abs(l.y - y) < 22 &&
+                Math.abs(l.x - x) < (l.width + tw) / 2 + 12,
+            )
+          )
+            continue;
+          labels.push({ x, y, width: tw });
+          ctx.fillStyle = "#f2ecd9eb";
+          ctx.beginPath();
+          ctx.roundRect(x - tw / 2 - 7, y - 11, tw + 14, 21, 4);
+          ctx.fill();
+          ctx.fillStyle = "#233e3b";
+          ctx.fillText(label, x, y + 3);
+        }
+      if (hover >= 0 && tool === "inspect") {
+        const city = (w.life?.settlements || []).find(
+          (s) =>
+            Math.hypot(
+              (s.tile % w.width) - (hover % w.width),
+              Math.floor(s.tile / w.width) - Math.floor(hover / w.width),
+            ) < 2.4,
+        );
+        const nation = w.nations[(w.tiles[hover]?.owner || 0) - 1];
+        if (city || nation) {
+          const owner = city ? w.nations[city.nation - 1] : nation;
+          const allies = w.relations.filter(
+            (r) => r.allied && (r.a === owner.id || r.b === owner.id),
+          ).length;
+          const enemies = w.relations.filter(
+            (r) => r.war && (r.a === owner.id || r.b === owner.id),
+          ).length;
+          const lines = [
+            city ? city.name : owner.name,
+            city
+              ? Math.round(city.population).toLocaleString() +
+                "명 · " +
+                owner.name
+              : "Lv." + (eraOf(owner) + 1) + " · " + ERAS[eraOf(owner)].name,
+            "동맹 " + allies + " · 전쟁 " + enemies,
+          ];
+          ctx.font = "12px system-ui";
+          const tw =
+            Math.max(...lines.map((l) => ctx.measureText(l).width)) + 24;
+          const x = Math.max(
+              8,
+              Math.min(
+                width - tw - 8,
+                c.x + ((hover % w.width) * 8 + 4) * c.zoom + 18,
+              ),
+            ),
+            y = Math.max(
+              8,
+              Math.min(
+                height - 80,
+                c.y + Math.floor(hover / w.width) * 8 * c.zoom - 80,
+              ),
+            );
+          ctx.fillStyle = "#132f32f5";
+          ctx.beginPath();
+          ctx.roundRect(x, y, tw, 74, 8);
+          ctx.fill();
+          ctx.strokeStyle = "#b9d9c955";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.textAlign = "left";
+          lines.forEach((line, i) => {
+            ctx.fillStyle = i === 0 ? "#f2e9cb" : "#b6d2c8";
+            ctx.fillText(line, x + 12, y + 21 + i * 21);
+          });
+        }
       }
       frame = requestAnimationFrame(draw);
     };
@@ -388,6 +517,7 @@ export default function MapView(props: Props) {
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
+      el.removeEventListener("pointerleave", leave);
       el.removeEventListener("pointerdown", pointerDown);
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);

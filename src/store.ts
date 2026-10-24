@@ -6,6 +6,9 @@ interface UI {
   speed: number;
   paused: boolean;
   political: boolean;
+  labels: boolean;
+  cities: boolean;
+  diplomacy: boolean;
   observe: boolean;
   set: (p: Partial<UI>) => void;
 }
@@ -16,6 +19,9 @@ export const useUI = create<UI>((set) => ({
   speed: 1,
   paused: false,
   political: true,
+  labels: true,
+  cities: false,
+  diplomacy: true,
   observe: false,
   set,
 }));

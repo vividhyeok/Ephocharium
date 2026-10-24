@@ -29,7 +29,7 @@ export const tileStamp = (t: Tile) =>
     +!!t.bridge,
     +!!t.tunnel,
     t.mine,
-    ...Object.values(t.deposits || {}),
+    ...Object.entries(t.deposits || {}).flat(),
   ].join("|");
 export function patchWorld(
   previous: World,

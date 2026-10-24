@@ -1,3 +1,4 @@
+import NationBrowser from './NationBrowser';
 import NationPanel from "./NationPanel";
 import { patchWorld } from "./wire";
 import HistoryOverview from "./HistoryOverview";
@@ -66,6 +67,7 @@ const PRESETS: {
 ];
 function App() {
   const ui = useUI();
+  const [displayMenu,setDisplayMenu]=useState(false);
   const [world, setWorld] = useState<World>();
   const worldRef = useRef<World | undefined>(undefined);
   worldRef.current = world;
@@ -361,6 +363,7 @@ function App() {
             tool={ui.tool}
             radius={ui.radius}
             political={ui.political}
+            labels={ui.labels} cities={ui.cities} diplomacy={ui.diplomacy} selected={selected}
             focus={focus}
             command={viewCommand}
             paused={ui.paused}
@@ -533,6 +536,13 @@ function App() {
           >
             <Icon name="history" size={15} /> 역사
           </button>
+          <button aria-expanded={displayMenu} onClick={()=>setDisplayMenu(!displayMenu)}><Icon name="settings" size={15}/> 표시</button>
+          {displayMenu&&<div className="display-menu" role="group" aria-label="지도 표시 설정">
+            <label><input type="checkbox" checked={ui.labels} onChange={e=>ui.set({labels:e.target.checked})}/>국가 이름 · 레벨</label>
+            <label><input type="checkbox" checked={ui.cities} onChange={e=>ui.set({cities:e.target.checked})}/>확대 시 도시 이름</label>
+            <label><input type="checkbox" checked={ui.diplomacy} onChange={e=>ui.set({diplomacy:e.target.checked})}/>선택 국가의 외교 연결</label>
+            <small>국가에 마우스를 올리면 동맹은 청록색, 전쟁은 주홍색 선으로 표시됩니다.</small>
+          </div>}
         </div>
         {!ui.observe && world && (
           <div className="atlas-corner">
@@ -550,55 +560,7 @@ function App() {
               </span>
               <small>{alive.length}</small>
             </div>
-            <div className="kingdom-list">
-              {alive
-                .slice()
-                .sort((a, b) => b.population - a.population)
-                .slice(0, 5)
-                .map((kingdom) => (
-                  <button
-                    key={kingdom.id}
-                    onClick={() => {
-                      setSelected(kingdom.id);
-                      setFocus(kingdom.capital);
-                    }}
-                  >
-                    <span
-                      className="kingdom-flag"
-                      style={{
-                        color: kingdom.color,
-                        background: kingdom.color + "18",
-                      }}
-                    >
-                      <Icon name="nation" size={17} />
-                    </span>
-                    <span className="kingdom-info">
-                      <b>{kingdom.name}</b>
-                      <span className="kingdom-progress">
-                        <i
-                          style={{
-                            width:
-                              Math.max(
-                                8,
-                                (kingdom.population /
-                                  Math.max(
-                                    1,
-                                    ...alive.map((n) => n.population),
-                                  )) *
-                                  100,
-                              ) + "%",
-                            background: kingdom.color,
-                          }}
-                        />
-                      </span>
-                    </span>
-                    <span className="kingdom-pop">
-                      {Math.round(kingdom.population).toLocaleString()}
-                      <small>명</small>
-                    </span>
-                  </button>
-                ))}
-            </div>
+            {world&&<NationBrowser world={world} onSelect={nation=>{setSelected(nation.id);setFocus(nation.capital)}}/>}
             <button
               className="kingdom-history"
               onClick={() => setPanel("history")}

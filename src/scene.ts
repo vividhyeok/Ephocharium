@@ -587,18 +587,4 @@ export function drawActors(
       ctx.fillText("항공 교역", x, y - 8);
     }
   }
-  if (zoom > 2.4) {
-    ctx.font = "3px system-ui";
-    ctx.textAlign = "center";
-    for (const c of s.settlements) {
-      const n = w.nations[c.nation - 1];
-      if (!n?.alive) continue;
-      const p = coordinates(w, c.tile);
-      if (!visible(p.x, p.y)) continue;
-      ctx.fillStyle = "#234b40bf";
-      ctx.fillRect(p.x - 9, p.y + 14, 18, 6);
-      ctx.fillStyle = "#e6e2bf";
-      ctx.fillText(Math.round(c.population) + "명", p.x, p.y + 18);
-    }
-  }
 }

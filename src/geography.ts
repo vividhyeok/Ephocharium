@@ -158,6 +158,7 @@ export function buildGeography(w: World, newTerrain = false) {
                   : t.t === 3
                     ? "forest"
                     : "plain";
+    if(t.irrigated && t.t!==0) {t.biome='plain';t.fertility=Math.max(t.fertility,.78);}
     if (newTerrain && t.t !== 0 && t.t !== 5 && !t.lake) {
       if (t.elevation! > 0.76 && smooth(w.seed + 431, x, y, 8) > 0.42) t.t = 4;
       else if (t.t === 4) t.t = t.moisture! > 0.55 ? 3 : 2;

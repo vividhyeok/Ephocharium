@@ -117,7 +117,54 @@ export default function NationPanel({
           </small>
         </figcaption>
       </figure>
-      <div className="nation-actions"><button onClick={onDetail}><Icon name="inspect"/> 도시 가까이 보기</button><button onClick={onHistory}><Icon name="history"/> 외교와 전체 역사</button></div>
+      <section className="diplomatic-card">
+        <b>
+          문명 Lv.{e + 1} / 14 · {ERAS[e].name}
+        </b>
+        <small>
+          생존 국가 중 기술{" "}
+          {w.nations.filter((x) => x.alive && x.tech > n.tech).length + 1}위
+        </small>
+        {(["allied", "war"] as const).map((kind) => (
+          <div key={kind}>
+            <strong>{kind === "allied" ? "동맹국" : "적대국"}</strong>
+            {w.relations
+              .filter((r) => r[kind] && (r.a === n.id || r.b === n.id))
+              .map((r) => {
+                const other = w.nations[(r.a === n.id ? r.b : r.a) - 1];
+                return (
+                  <button key={other.id} onClick={() => onFocus(other.capital)}>
+                    {other.name} · Lv.{eraOf(other) + 1}
+                  </button>
+                );
+              })}
+            {!w.relations.some(
+              (r) => r[kind] && (r.a === n.id || r.b === n.id),
+            ) && <span>없음</span>}
+          </div>
+        ))}
+        {(w.living?.projects || [])
+          .filter((p) => p.nation === n.id && p.status === "building")
+          .map((p) => (
+            <button key={p.id} onClick={() => onFocus(p.tile)}>
+              {p.kind === "reclamation" ? "해안 간척" : "사막 관개"} 공사 ·{" "}
+              {Math.round((p.progress / p.duration) * 100)}%
+              <progress value={p.progress} max={p.duration} />
+            </button>
+          ))}
+        <small>
+          동맹 연결망은 지도에서 같은 색으로 표시됩니다. 국경은 각 국가별로
+          유지됩니다.
+        </small>
+      </section>
+      <div className="nation-actions">
+        <button onClick={onDetail}>
+          <Icon name="inspect" /> 도시 가까이 보기
+        </button>
+        <button onClick={onHistory}>
+          <Icon name="history" /> 외교와 전체 역사
+        </button>
+      </div>
       <div className="nation-grid illustrated-metrics">
         <span>
           <img src="/art/objects/population.svg" alt="" />
@@ -176,8 +223,14 @@ export default function NationPanel({
         <canvas
           ref={mini}
           aria-label="국가의 강·도시·항만·철도 지도"
-          role="button" tabIndex={0}
-          onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onFocus(n.capital);}}}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onFocus(n.capital);
+            }
+          }}
           onClick={() => onFocus(n.capital)}
         />
         <button onClick={() => onFocus(n.capital)}>수도 위치로 이동</button>

@@ -120,6 +120,7 @@ export function validateLiving(w: World) {
     s.vehicles.length > 256 ||
     !s.vehicles.every(
       (v) =>
+        (v.targetTile === undefined || tile(v.targetTile)) &&
         n(v.id) &&
         id(v.nation) &&
         id(v.targetNation) &&
@@ -138,8 +139,27 @@ export function validateLiving(w: World) {
           "landing",
           "support",
           "airlift",
+          "colonize",
         ].includes(v.purpose),
     )
+  )
+    return false;
+  if (
+    s.projects !== undefined &&
+    (!Array.isArray(s.projects) ||
+      s.projects.length > 256 ||
+      !s.projects.every(
+        (p) =>
+          n(p.id) &&
+          id(p.nation) &&
+          tile(p.tile) &&
+          n(p.city) &&
+          n(p.started) &&
+          n(p.progress) &&
+          n(p.duration, 1, 1000) &&
+          ["reclamation", "irrigation"].includes(p.kind) &&
+          ["building", "complete", "abandoned"].includes(p.status),
+      ))
   )
     return false;
   return (

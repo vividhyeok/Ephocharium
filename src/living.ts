@@ -97,7 +97,7 @@ export function reconcileLiving(w: World) {
     const cities = w.life.settlements.filter((c) => c.nation === n.id);
     for (const c of cities) createCity(w, c);
     const transit = w.living.vehicles
-      .filter((v) => v.purpose === "migration" && v.nation === n.id && v.people)
+      .filter((v) => v.nation === n.id && v.people)
       .reduce((s, v) => s + sum(v.people!), 0);
     const total =
       cities.reduce((s, c) => s + sum(c.urban!.cohorts), 0) + transit;
@@ -383,7 +383,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
     }
     const transit = w
       .living!.vehicles.filter(
-        (v) => v.nation === n.id && v.purpose === "migration" && v.people,
+        (v) => v.nation === n.id && v.people,
       )
       .reduce((a, v) => a + sum(v.people!), 0);
     n.population = sum(n.demography.cohorts) + transit;

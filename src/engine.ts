@@ -1,3 +1,4 @@
+import { frontierYear } from './frontier';
 import { validateLiving } from "./livingValidation";
 import { transportYear } from "./transport";
 import { ensureLiving, urbanYear, reconcileLiving } from "./living";
@@ -44,6 +45,8 @@ import {
 export type Terrain = 0 | 1 | 2 | 3 | 4 | 5; // ocean, sand, grass, forest, mountain, snow
 export type Preset = "empty" | "dawn" | "four" | "islands" | "war" | "observe";
 export interface Tile {
+  reclaimed?: boolean;
+  irrigated?: boolean;
   baseFertility?: number;
   elevation?: number;
   spill?: number;
@@ -541,6 +544,7 @@ export function step(w: World) {
   }
   updateDiplomacy(w);
   updateLife(w, holdings);
+  frontierYear(w);
   transportYear(w);
   updateCulture(w);
   captureAtlas(w);

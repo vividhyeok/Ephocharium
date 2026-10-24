@@ -1,3 +1,5 @@
+import { politicalColors } from "./politicalColors";
+import { drawRelief } from "./reliefArt";
 import type { World } from "./engine";
 /** Quiet atlas ground. Relief is a continuous surface, never a field of building sprites. */
 export function drawTerrain(
@@ -14,23 +16,13 @@ export function drawTerrain(
     "#9ba595",
     "#dde3d8",
   ];
-  const base = document.createElement("canvas");
-  base.width = w.width;
-  base.height = w.height;
-  const ground = base.getContext("2d")!;
-  for (let i = 0; i < w.tiles.length; i++) {
-    ground.fillStyle = colors[w.tiles[i].t];
-    ground.fillRect(i % w.width, Math.floor(i / w.width), 1, 1);
-  }
-  ctx.save();
-  ctx.imageSmoothingEnabled = true;
-  ctx.filter = "blur(2px)";
-  ctx.drawImage(base, 0, 0, w.width * 8, w.height * 8);
-  ctx.restore();
+  const bloc = politicalColors(w);
   for (let i = 0; i < w.tiles.length; i++) {
     const t = w.tiles[i],
       x = (i % w.width) * 8,
       y = Math.floor(i / w.width) * 8;
+    ctx.fillStyle = colors[t.t];
+    ctx.fillRect(x, y, 8, 8);
     if (t.t === 4 || ((t.elevation || 0) > 0.65 && t.t !== 0)) {
       const west = w.tiles[i - 1]?.elevation || 0,
         east = w.tiles[i + 1]?.elevation || 0;
@@ -38,20 +30,6 @@ export function drawTerrain(
       ctx.fillStyle =
         slope > 0 ? `rgba(40,64,57,${slope})` : `rgba(242,239,215,${-slope})`;
       ctx.fillRect(x, y, 8, 8);
-      // Joined, low horizontal ridges. No repeated vertical snowy triangles.
-      if (t.t === 4 && i % 3 === 0) {
-        ctx.strokeStyle = "#74877770";
-        ctx.lineWidth = 0.7;
-        ctx.beginPath();
-        ctx.moveTo(x - 4, y + 7);
-        ctx.quadraticCurveTo(x + 3, y + 1, x + 12, y + 5);
-        ctx.stroke();
-        ctx.strokeStyle = "#d4dbc270";
-        ctx.beginPath();
-        ctx.moveTo(x - 3, y + 5);
-        ctx.quadraticCurveTo(x + 3, y, x + 12, y + 3);
-        ctx.stroke();
-      }
     }
     if (t.t === 3 && (t.wood || 0) > 4 && detail > 0 && i % 3 === 0) {
       ctx.fillStyle = "#547a6460";
@@ -74,8 +52,8 @@ export function drawTerrain(
     if (political && t.owner) {
       const n = w.nations[t.owner - 1];
       if (!n) continue;
-      ctx.globalAlpha = 0.12;
-      ctx.fillStyle = n.color;
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = bloc.get(n.id)!;
       ctx.fillRect(x, y, 8, 8);
       ctx.globalAlpha = 1;
       ctx.beginPath();
@@ -98,9 +76,10 @@ export function drawTerrain(
       ctx.strokeStyle = "#344e4566";
       ctx.lineWidth = 1.8;
       ctx.stroke();
-      ctx.strokeStyle = n.color;
+      ctx.strokeStyle = bloc.get(n.id)!;
       ctx.lineWidth = 0.8;
       ctx.stroke();
     }
   }
+  drawRelief(ctx, w);
 }
