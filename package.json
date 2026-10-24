@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "node scripts/dev.mjs",
     "build": "tsc && vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "dev:epi": "node scripts/epi-dev.mjs",
-    "benchmark": "node scripts/benchmark-0.6.mjs"
+    "benchmark": "node scripts/benchmark-0.6.mjs",
+    "dev:vite": "vite --host 0.0.0.0"
   },
   "dependencies": {
     "idb": "^8.0.0",
