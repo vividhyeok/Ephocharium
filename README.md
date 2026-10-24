@@ -28,14 +28,13 @@ Vite가 출력한 주소를 엽니다. `npm run build` 결과는 `dist/`입니�
 1. `.env.example`을 `.env.local`로 복사합니다.
 2. `DEEPSEEK_API_KEY`에 DeepSeek API 키를 등록합니다.
 3. `EPI_ACCESS_TOKEN`에 24자 이상의 무작위 초대 코드를 등록하고 `EPI_ENABLED=true`로 설정합니다.
-4. 두 터미널에서 각각 실행합니다.
+4. `npm run dev` 한 번으로 게임과 로컬 API 서버를 함께 실행합니다.
 
 ```sh
-npm run dev:epi
 npm run dev
 ```
 
-로컬 API는 127.0.0.1:5174, 브라우저는 Vite의 `/api/epi` 프록시를 사용합니다. 서버 코드나 환경변수를 바꾸면 `dev:epi`를 다시 실행하세요. 에피의 **대화 접근 설정 → 초대 코드**에 `EPI_ACCESS_TOKEN` 값을 입력합니다. API 키를 이 입력란에 넣지 마세요.
+로컬 API는 127.0.0.1:5174, 브라우저는 Vite의 `/api/epi` 프록시를 사용합니다. 서버 코드나 환경변수를 바꾸면 `npm run dev`를 다시 실행하세요. Vite만 단독 실행할 때에는 `npm run dev:vite`를 사용할 수 있지만 이때 에피 API는 별도로 실행해야 합니다. 에피의 **대화 접근 설정 → 초대 코드**에 `EPI_ACCESS_TOKEN` 값을 입력합니다. API 키를 이 입력란에 넣지 마세요.
 
 초대 코드 생성 예시:
 
