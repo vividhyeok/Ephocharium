@@ -2,8 +2,8 @@ import { z } from "zod";
 const num = z.number().finite().min(0).max(1e12),
   text = z.string().max(300),
   nullable = num.nullable();
-import {metrics} from './metrics';
-export {metrics} from './metrics';
+import {metrics} from './metrics.js';
+export {metrics} from './metrics.js';
 export const nationSchema = z
   .object({
     id: num.int(),

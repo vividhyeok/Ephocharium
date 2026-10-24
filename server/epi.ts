@@ -4,8 +4,8 @@ import {
   queryEvidence,
   toolNames,
   type EpiRequest,
-} from "../src/epi/protocol";
-import { readSSE, encodeSSE } from "../src/epi/sse";
+} from "../src/epi/protocol.js";
+import { readSSE, encodeSSE } from "../src/epi/sse.js";
 export type Env = Record<string, string | undefined>;
 export class EpiError extends Error {
   constructor(

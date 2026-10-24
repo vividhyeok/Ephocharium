@@ -51,6 +51,8 @@ export default function MapView(props: Props) {
     let cachedDetail = -1;
     let cachedEpoch: number | undefined;
     let frame = 0;
+    const paintInterval = matchMedia("(pointer:coarse)").matches ? 1000 / 24 : 1000 / 30;
+    let lastPaint = -Infinity;
     let down = false;
     let drag = false;
     let singleClick = false;
@@ -212,7 +214,10 @@ export default function MapView(props: Props) {
     el.addEventListener("pointercancel", up);
     el.addEventListener("wheel", wheel, { passive: false });
     el.oncontextmenu = (e) => e.preventDefault();
-    const draw = () => {
+    const draw = (timestamp: number = performance.now()) => {
+      frame = requestAnimationFrame(draw);
+      if (timestamp - lastPaint < paintInterval) return;
+      lastPaint = timestamp;
       const { world: w, political, tool, radius } = latest.current;
       const c = camera.current;
       el.dataset.zoom = c.zoom.toFixed(3);
@@ -511,7 +516,6 @@ export default function MapView(props: Props) {
           });
         }
       }
-      frame = requestAnimationFrame(draw);
     };
     draw();
     return () => {
