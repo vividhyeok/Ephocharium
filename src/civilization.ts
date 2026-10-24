@@ -1,47 +1,8 @@
 import { random, neighbors, record, type World, type Nation } from "./engine";
 
-export const ERAS = [
-  {
-    name: "부족 시대",
-    threshold: 0,
-    description: "모닥불과 오두막 · 채집과 정착",
-  },
-  {
-    name: "농경 시대",
-    threshold: 0.55,
-    description: "농장과 흙길 · 정착 마을",
-  },
-  {
-    name: "왕국 시대",
-    threshold: 1.6,
-    description: "성벽과 시장 · 조직된 군대",
-  },
-  {
-    name: "산업 시대",
-    threshold: 3.4,
-    description: "공장과 포장도로 · 차량 운송",
-  },
-  {
-    name: "현대 시대",
-    threshold: 5.5,
-    description: "고층 건물과 전력 · 도시 경제",
-  },
-  {
-    name: "항공 시대",
-    threshold: 7.5,
-    description: "공항과 항공 교역 · 연결되는 도시",
-  },
-] as const;
-export const eraOf = (n: Nation) =>
-  ERAS.reduce((era, e, i) => (n.tech >= e.threshold ? i : era), 0);
-export const housingCapacity = (n: Nation) =>
-  eraOf(n) >= 4
-    ? 200 + Math.max(0, n.tech - 5.5) * 50
-    : eraOf(n) >= 3
-      ? 60
-      : eraOf(n) >= 2
-        ? 14
-        : 9;
+export { ERAS, eraOf, housingCapacity } from "./eras";
+import { ERAS, eraOf, housingCapacity } from "./eras";
+export { researchRate } from "./progression";
 export type Role =
   | "farmer"
   | "woodcutter"
@@ -84,12 +45,17 @@ export interface Settlement {
   homes: number;
   development: number;
   airport: boolean;
+  industry?: number;
+  network?: number;
 }
 export interface Polity {
   nation: number;
   era: number;
   regime: "tribe" | "monarchy" | "republic" | "vacuum";
   authority: number;
+  energy?: number;
+  satellites?: number;
+  probes?: number;
   wood: number;
   metal: number;
 }
@@ -235,7 +201,7 @@ export function prepareLife(w: World) {
         regime:
           eraOf(n) === 0
             ? "tribe"
-            : eraOf(n) >= 3 && n.aggression < 0.55
+            : eraOf(n) >= 7 && n.aggression < 0.55
               ? "republic"
               : "monarchy",
         authority: n.stability,
@@ -354,19 +320,6 @@ export function refreshLife(w: World) {
     ),
   );
 }
-export function researchRate(w: World, n: Nation) {
-  const p = w.life?.polities.find((p) => p.nation === n.id);
-  const resources = p
-    ? Math.min(0.008, p.metal * 0.00025 + p.wood * 0.00006)
-    : 0;
-  return (
-    (0.005 +
-      Math.min(0.012, n.wealth / 45000) +
-      Math.log2(1 + n.population) / 2500 +
-      resources) *
-    (n.food > n.population ? 0.7 + n.stability * 0.3 : 0.25)
-  );
-}
 export function updateLife(w: World, owned: Map<number, number[]>) {
   const s = prepareLife(w);
   syncCitizens(w, owned);
@@ -403,7 +356,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
         ? "vacuum"
         : era === 0
           ? "tribe"
-          : era >= 3 && n.aggression < 0.55
+          : era >= 7 && n.aggression < 0.55
             ? "republic"
             : "monarchy";
     if (regime !== polity.regime) {
@@ -476,8 +429,9 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
           (n.food > n.population ? 0.04 : 0) +
           Math.min(0.05, n.wealth / 10000),
         0,
-        10,
+        era + 1 + Math.log1p(Math.max(0, n.tech - 300)),
       );
+      const previousLevel = c.level;
       c.level = Math.min(
         era,
         c.population > 500
@@ -490,6 +444,8 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
                 ? 1
                 : 0,
       );
+      if (c.level > previousLevel)
+        record(w, c.name + " 도시 발전 · 단계 " + c.level, [n.id], c.tile);
       const desiredHomes = clamp(
         Math.ceil(c.population / housingCapacity(n)),
         2,
@@ -498,18 +454,18 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
       if (
         c.homes < desiredHomes &&
         polity.wood >= 2 &&
-        (era < 3 || polity.metal >= 1)
+        (era < 7 || polity.metal >= 1)
       ) {
         c.homes++;
         polity.wood -= 2;
-        if (era >= 3) polity.metal -= 1;
+        if (era >= 7) polity.metal -= 1;
       }
       if (c.homes > desiredHomes) c.homes = desiredHomes;
       c.airport =
-        era >= 5 &&
+        era >= 9 &&
         c.population >= 60 &&
         n.wealth > 100 &&
-        c.development >= 3 &&
+        c.development >= 9 &&
         airports.length < 3 &&
         !airports.some((other) => distance(w, other.tile, c.tile) < 8);
       if (c.airport) airports.push(c);
@@ -523,7 +479,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     polity.wood = Math.max(0, polity.wood - cities.length * 0.025);
     polity.metal = Math.max(
       0,
-      polity.metal - cities.length * (era >= 3 ? 0.06 : 0.01),
+      polity.metal - cities.length * (era >= 7 ? 0.06 : 0.01),
     );
     const housing = cities.reduce(
       (total, c) => total + c.homes * housingCapacity(n),
@@ -588,12 +544,15 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
             n.wealth += 0.35;
           }
           if (u.role === "builder") {
-            home.development = Math.min(10, home.development + 0.015);
+            home.development = Math.min(
+              eraOf(n) + 1 + Math.log1p(Math.max(0, n.tech - 300)),
+              home.development + 0.015,
+            );
             t.damage = Math.max(0, t.damage - 0.02);
           }
           if (u.role === "merchant") {
             n.wealth += 0.2;
-            n.tech += 0.0001;
+            // Knowledge diffusion is handled by bilateral relations, not decorative movement.
           }
         }
       } else {
@@ -625,9 +584,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     move(
       w,
       u,
-      0.8 +
-        (eraOf(n) >= 3 ? 0.6 : 0) +
-        (w.tiles[index(w, u.x, u.y)]?.road || 0) * 0.5,
+      ERAS[eraOf(n)].mobility + (w.tiles[index(w, u.x, u.y)]?.road || 0) * 0.5,
     );
     const now = w.tiles[index(w, u.x, u.y)];
     if (now && u.route.length && eraOf(n) >= 1 && u.role === "merchant")
@@ -729,7 +686,7 @@ function updateArmies(
       a.route = findRoute(w, index(w, a.x, a.y), a.target);
       a.siege = 0;
     }
-    move(w, a, eraOf(n) >= 3 ? 1.8 : 1.1);
+    move(w, a, eraOf(n) >= 7 ? 1.8 : 1.1);
     const tile = index(w, a.x, a.y);
     if (w.tiles[tile]?.owner !== a.enemy) continue;
     a.route = [];
@@ -746,12 +703,13 @@ function updateArmies(
       terrain = w.tiles[tile].t === 3 ? 1.3 : 1;
     const attack =
         a.strength *
-        (1 + n.tech * 0.22) *
+        (1 + Math.sqrt(n.tech) * 0.4) *
+        (0.8 + (n.tendencies?.military || 0.2)) *
         (0.4 + ctx.polity.authority * 0.6) *
         supply,
       defense =
         ((enemy.population / Math.max(1, enemy.territory)) * 1.8 + allied) *
-        (1 + enemy.tech * 0.2) *
+        (1 + Math.sqrt(enemy.tech) * 0.38) *
         terrain;
     const loss = Math.min(
       a.strength,
@@ -790,7 +748,7 @@ function updateFlights(w: World) {
     );
   });
   for (const n of w.nations.filter(
-    (n) => n.alive && eraOf(n) >= 5 && n.wealth > 100,
+    (n) => n.alive && eraOf(n) >= 9 && n.wealth > 100,
   )) {
     const airports = s.settlements.filter(
       (c) => c.nation === n.id && c.airport,
@@ -905,11 +863,12 @@ export function validateLife(w: World): boolean {
         c.name.length < 200 &&
         number(c.population) &&
         number(c.level) &&
-        c.level <= 5 &&
+        c.level <= 13 &&
         number(c.homes) &&
         c.homes <= 18 &&
         number(c.development) &&
-        typeof c.airport === "boolean",
+        typeof c.airport === "boolean" &&
+        [c.industry, c.network].every((v) => v === undefined || number(v)),
     ) &&
     Array.isArray(s.polities) &&
     s.polities.length <= 100000 &&
@@ -919,12 +878,15 @@ export function validateLife(w: World): boolean {
         id(p.nation) &&
         Number.isInteger(p.era) &&
         p.era >= 0 &&
-        p.era < 6 &&
+        p.era < ERAS.length &&
         ["tribe", "monarchy", "republic", "vacuum"].includes(p.regime) &&
         number(p.authority) &&
         p.authority <= 1 &&
         number(p.wood) &&
-        number(p.metal),
+        number(p.metal) &&
+        [p.energy, p.satellites, p.probes].every(
+          (v) => v === undefined || number(v),
+        ),
     ) &&
     Array.isArray(s.armies) &&
     s.armies.length <= 100 &&

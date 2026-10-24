@@ -100,11 +100,11 @@ describe("움직이는 문명과 발전", () => {
   });
   it("시대는 연도가 아니라 기술 상태에 따라 바뀌고 건축·공항·비행이 연결된다", () => {
     const w = world();
-    w.nations[0].tech = 7.6;
+    w.nations[0].tech = 91;
     w.nations[0].population = 1000;
     w.nations[0].wealth = 10000;
-    run(w, 75);
-    expect(eraOf(w.nations[0])).toBe(5);
+    run(w, 200);
+    expect(eraOf(w.nations[0])).toBe(10);
     expect(
       w.life!.settlements.filter((c) => c.nation === 1 && c.airport).length,
     ).toBeGreaterThanOrEqual(2);

@@ -1,3 +1,4 @@
+import { equipmentEra } from "./eras";
 import { pixelPerson } from "./PixelPerson";
 import type { World } from "./engine";
 import { eraOf, type Citizen, type Settlement } from "./civilization";
@@ -25,7 +26,7 @@ const houseOffsets = [
   [1, 2],
   [2, -1],
 ];
-function building(
+function legacyBuilding(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -111,6 +112,89 @@ function building(
     ctx.fillRect(x - 3, y - h - 2, 7, 1);
   }
 }
+export function building(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  era: number,
+  color: string,
+  variant: number,
+  capital = false,
+) {
+  const base = [0, 1, 1, 2, 2, 2, 2, 3, 3, 4, 4, 4, 5, 5][era] ?? 5;
+  legacyBuilding(ctx, x, y, base, color, variant, capital);
+  const r = (c: string, dx: number, dy: number, w: number, h: number) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x + dx, y + dy, w, h);
+  };
+  if (era === 2) {
+    r("#a4885b", -5, 0, 10, 2);
+    r("#d8b967", -5, -5, 3, 2);
+  }
+  if (era === 3) {
+    r("#b8bcad", -5, -8, 2, 10);
+    r("#b8bcad", 4, -8, 2, 10);
+    r(color, -5, -9, 2, 2);
+  }
+  if (era === 4) {
+    r("#e4ddbe", -5, -8, 10, 2);
+    for (let i = 0; i < 3; i++) r("#c8c6a7", -4 + i * 3, -6, 1, 7);
+  }
+  if (era === 5) {
+    r("#626b78", -4, -8, 8, 3);
+    r("#aeb8b0", -5, -11, 2, 12);
+    r(color, -5, -12, 3, 2);
+  }
+  if (era === 6) {
+    r("#8ba59c", -4, -9, 8, 3);
+    r("#d9c693", -2, -11, 4, 2);
+    r("#d9c693", 0, -13, 1, 3);
+  }
+  if (era === 7) {
+    r("#806c59", 3, -12, 2, 9);
+    r("#a7aaa0", 3, -14, 3, 2);
+  }
+  if (era === 8) {
+    r("#b8c2b2", -5, -10, 10, 3);
+    r("#d9bb67", -2, -8, 1, 5);
+    r("#d9bb67", -3, -5, 3, 1);
+    r("#707e7b", 5, -13, 1, 16);
+    r("#d8d5b1", 3, -11, 5, 1);
+  }
+  if (era === 9) {
+    r("#e2e6d6", -4, -19, 8, 2);
+    r("#84a2a5", 3, -17, 2, 18);
+  }
+  if (era === 10) {
+    r("#8cbbc2", -4, -20, 8, 3);
+    r("#d3e4d8", 0, -26, 1, 7);
+    r("#8cbbc2", -2, -24, 5, 1);
+  }
+  if (era === 11) {
+    r("#b3c8b6", -5, -12, 10, 13);
+    r("#3f6668", -4, -10, 8, 6);
+    r("#84c2b6", -3, -9, 2, 2);
+    r("#84c2b6", 1, -9, 2, 2);
+    r("#97b1a6", 5, -8, 3, 1);
+    r("#97b1a6", 7, -8, 1, 6);
+  }
+  if (era === 12) {
+    r("#6b8183", -5, -3, 11, 5);
+    r("#e2e4d3", -1, -20, 3, 17);
+    r("#d4ba7c", -2, -3, 5, 2);
+    r("#adbeb4", 4, -18, 1, 19);
+    r("#adbeb4", 2, -13, 4, 1);
+    r(color, -1, -16, 3, 2);
+  }
+  if (era === 13) {
+    r("#81aba8", -5, -12, 10, 12);
+    r("#a8d2bb", -4, -15, 8, 4);
+    r("#c1ded0", -2, -17, 4, 3);
+    r("#355c63", -3, -10, 6, 8);
+    r("#a7d1b2", -1, -9, 2, 6);
+    r("#c9dba9", -5, 0, 11, 2);
+  }
+}
 export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
   const s = w.life;
   if (!s) return;
@@ -129,7 +213,7 @@ export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
     if (!t.owner || (t.road || 0) < 0.15) return;
     const n = w.nations[t.owner - 1];
     if (!n) return;
-    ctx.strokeStyle = eraOf(n) >= 3 ? "#9a9c8b" : "#d1bf86";
+    ctx.strokeStyle = eraOf(n) >= 7 ? "#9a9c8b" : "#d1bf86";
     ctx.lineWidth = eraOf(n) >= 3 ? 2 : 1.4;
     ctx.beginPath();
     ctx.moveTo(x - 2, y);
@@ -145,14 +229,34 @@ export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
         ctx.lineTo(b.x, b.y);
       }
     ctx.stroke();
+    const p = s.polities.find((p) => p.nation === n.id);
+    if (eraOf(n) >= 8 && (p?.energy || 0) > 0.2 && i % 9 === 0) {
+      ctx.fillStyle = "#6a7c78";
+      ctx.fillRect(x + 2, y - 6, 1, 8);
+      ctx.fillRect(x, y - 5, 5, 1);
+      ctx.fillStyle = "#e9d5a3";
+      ctx.fillRect(x, y - 5, 1, 1);
+    }
   });
   for (const c of s.settlements) {
     const n = w.nations[c.nation - 1];
     if (!n?.alive || w.tiles[c.tile].owner !== n.id) continue;
     const era = Math.min(eraOf(n), Math.floor(c.development)),
       p = coordinates(w, c.tile);
-    ctx.fillStyle = era >= 3 ? "#b7b7a17a" : "#caba857a";
+    ctx.fillStyle = era >= 7 ? "#b7b7a17a" : "#caba857a";
     ctx.fillRect(p.x - 5, p.y - 4, 10, 10);
+    const structures =
+      era >= 7
+        ? Math.min(
+            18,
+            Math.max(
+              c.homes,
+              2 +
+                Math.floor(Math.log2(1 + c.population)) +
+                (c.industry || 0) * 2,
+            ),
+          )
+        : c.homes;
     let count = 0;
     for (const [dx, dy] of houseOffsets) {
       const tx = (c.tile % w.width) + dx,
@@ -175,7 +279,7 @@ export function drawInfrastructure(ctx: CanvasRenderingContext2D, w: World) {
         count,
         count === 0 && c.tile === n.capital,
       );
-      if (++count >= c.homes) break;
+      if (++count >= structures) break;
     }
     if (era >= 1) {
       for (const [dx, dy] of [
@@ -302,11 +406,32 @@ export function drawActors(
   const s = w.life;
   if (!s) return;
   const lerp = (a: number, b: number) => a + (b - a) * alpha;
+  const transform = ctx.getTransform();
+  const visible = (x: number, y: number) =>
+    x > -transform.e / transform.a - 35 &&
+    x < (ctx.canvas.width - transform.e) / transform.a + 35 &&
+    y > -transform.f / transform.d - 35 &&
+    y < (ctx.canvas.height - transform.f) / transform.d + 35;
+  if (zoom > 0.8)
+    for (const p of s.polities) {
+      if (!(p.satellites || 0)) continue;
+      const n = w.nations[p.nation - 1];
+      if (!n?.alive) continue;
+      const pt = coordinates(w, n.capital);
+      ctx.fillStyle = "#d5e9dc";
+      ctx.fillRect(pt.x + 14, pt.y - 23, 3, 3);
+      ctx.fillStyle = "#719daa";
+      ctx.fillRect(pt.x + 10, pt.y - 22, 4, 2);
+      ctx.fillRect(pt.x + 17, pt.y - 22, 4, 2);
+      ctx.fillStyle = "#e5d4a0";
+      ctx.fillRect(pt.x + 15, pt.y - 25, 1, 2);
+    }
   for (const u of s.citizens) {
     const n = w.nations[u.nation - 1];
     if (!n?.alive) continue;
     const x = lerp(u.previousX, u.x) * 8,
       y = lerp(u.previousY, u.y) * 8 + 2;
+    if (!visible(x, y)) continue;
     if (zoom >= 3)
       pixelPerson(
         ctx,
@@ -314,7 +439,7 @@ export function drawActors(
         y,
         n.color,
         u.role,
-        eraOf(n),
+        equipmentEra(n),
         !paused &&
           (Math.hypot(u.x - u.previousX, u.y - u.previousY) > 0.02 ||
             (u.work > 0 && !u.returning))
@@ -322,14 +447,15 @@ export function drawActors(
           : 0,
         u.work > 0 && !u.returning,
       );
-    else person(ctx, u, x, y, n.color, eraOf(n), clock, paused);
+    else person(ctx, u, x, y, n.color, equipmentEra(n), clock, paused);
   }
   for (const a of s.armies) {
     const n = w.nations[a.nation - 1];
     if (!n?.alive) continue;
     const x = lerp(a.previousX, a.x) * 8,
       y = lerp(a.previousY, a.y) * 8,
-      era = eraOf(n);
+      era = equipmentEra(n);
+    if (!visible(x, y)) continue;
     if (zoom >= 3) {
       for (let i = 0; i < Math.min(4, Math.ceil(a.strength / 15)); i++)
         pixelPerson(
@@ -435,6 +561,7 @@ export function drawActors(
       const n = w.nations[c.nation - 1];
       if (!n?.alive) continue;
       const p = coordinates(w, c.tile);
+      if (!visible(p.x, p.y)) continue;
       ctx.fillStyle = "#234b40bf";
       ctx.fillRect(p.x - 9, p.y + 14, 18, 6);
       ctx.fillStyle = "#e6e2bf";

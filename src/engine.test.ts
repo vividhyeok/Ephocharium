@@ -65,7 +65,7 @@ describe("문명 시뮬레이션 A–H", () => {
     expect(burden(empire.nations[0])).toBeGreaterThan(
       burden(advanced.nations[0]),
     );
-    run(empire, 20);
+    run(empire, 180);
     expect(empire.history.some((e) => e.text.includes("행정 위기"))).toBe(true);
   });
   it("E: 재해 피해가 실제 인구와 생산에 반영되고 지형이 회복된다", () => {
@@ -112,7 +112,7 @@ describe("문명 시뮬레이션 A–H", () => {
     expect(w.history.length).toBeLessThanOrEqual(1200);
     expect(w.nations.every((n) => n.samples.length <= 150)).toBe(true);
     expect(validate(w)).toBe(true);
-  }, 20000);
+  }, 60000);
   it("H: 저장/복원은 RNG와 이후의 역사까지 보존한다", () => {
     const w = run(make(), 150);
     const restored = JSON.parse(JSON.stringify(w));

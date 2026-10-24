@@ -12,6 +12,8 @@ const PALETTE = [
 ];
 interface Props {
   world: World;
+  worldEpoch: number;
+  pair?: [number, number];
   tool: string;
   radius: number;
   political: boolean;
@@ -20,6 +22,8 @@ interface Props {
   focus: { tile: number; request: number } | null;
   command: { action: string; id: number };
   paused: boolean;
+  speed: number;
+  onStroke: (begin: boolean) => void;
   onHover: (tile: number) => void;
 }
 export default function MapView(props: Props) {
@@ -33,9 +37,12 @@ export default function MapView(props: Props) {
     const raster = document.createElement("canvas");
     let cachedWorld: World | undefined;
     let cachedPolitical: boolean | undefined;
+    let cachedRevision: number | undefined;
+    let cachedEpoch: number | undefined;
     let frame = 0;
     let down = false;
     let drag = false;
+    let singleClick = false;
     let last = { x: 0, y: 0 };
     let origin = { x: 0, y: 0 };
     let lastTile = -1;
@@ -73,11 +80,15 @@ export default function MapView(props: Props) {
     const pointerDown = (e: PointerEvent) => {
       el.setPointerCapture(e.pointerId);
       down = true;
+      singleClick = ["war", "alliance", "peace"].includes(latest.current.tool);
       drag =
         e.button === 1 || e.button === 2 || latest.current.tool === "inspect";
       origin = last = { x: e.clientX, y: e.clientY };
       lastTile = -1;
-      if (!drag) use(locate(e));
+      if (!drag) {
+        latest.current.onStroke(true);
+        use(locate(e));
+      }
     };
     const move = (e: PointerEvent) => {
       hover = locate(e);
@@ -87,7 +98,7 @@ export default function MapView(props: Props) {
         camera.current.x += e.clientX - last.x;
         camera.current.y += e.clientY - last.y;
         last = { x: e.clientX, y: e.clientY };
-      } else use(hover);
+      } else if (!singleClick) use(hover);
     };
     const up = (e: PointerEvent) => {
       if (drag && Math.hypot(e.clientX - origin.x, e.clientY - origin.y) < 5) {
@@ -95,6 +106,7 @@ export default function MapView(props: Props) {
         if (i >= 0)
           latest.current.onSelect(latest.current.world.tiles[i].owner);
       }
+      if (down && !drag) latest.current.onStroke(false);
       down = false;
     };
     const wheel = (e: WheelEvent) => {
@@ -119,7 +131,14 @@ export default function MapView(props: Props) {
       const c = camera.current;
       const width = el.width / devicePixelRatio,
         height = el.height / devicePixelRatio;
-      const key = w.seed + ":" + w.width + ":" + w.height;
+      const key =
+        w.seed +
+        ":" +
+        w.width +
+        ":" +
+        w.height +
+        ":" +
+        latest.current.worldEpoch;
       if (!c.ready || key !== dims) {
         c.zoom = Math.min(
           (width - 80) / (w.width * 8),
@@ -142,7 +161,14 @@ export default function MapView(props: Props) {
         snapshot = w;
         snapshotTime = performance.now();
       }
-      if (cachedWorld !== w || cachedPolitical !== political) {
+      if (
+        cachedEpoch !== latest.current.worldEpoch ||
+        cachedWorld?.seed !== w.seed ||
+        cachedWorld?.width !== w.width ||
+        cachedRevision !== w.renderRevision ||
+        (w.renderRevision === undefined && cachedWorld !== w) ||
+        cachedPolitical !== political
+      ) {
         raster.width = w.width * 8;
         raster.height = w.height * 8;
         const display = ctx;
@@ -286,6 +312,8 @@ export default function MapView(props: Props) {
         });
         drawInfrastructure(ctx, w);
         ctx = display;
+        cachedEpoch = latest.current.worldEpoch;
+        cachedRevision = w.renderRevision;
         cachedWorld = w;
         cachedPolitical = political;
       }
@@ -295,7 +323,11 @@ export default function MapView(props: Props) {
         w,
         latest.current.paused
           ? 1
-          : Math.min(1, (performance.now() - snapshotTime) / 500),
+          : Math.min(
+              1,
+              (performance.now() - snapshotTime) /
+                (4000 / latest.current.speed),
+            ),
         time,
         c.zoom,
         latest.current.paused,
@@ -328,6 +360,20 @@ export default function MapView(props: Props) {
         }
       }
       if (hover >= 0 && tool !== "inspect") {
+        ctx.fillStyle = "#ffe5a040";
+        for (let dy = -radius; dy <= radius; dy++)
+          for (let dx = -radius; dx <= radius; dx++) {
+            const xx = (hover % w.width) + dx,
+              yy = Math.floor(hover / w.width) + dy;
+            if (
+              dx * dx + dy * dy <= radius * radius &&
+              xx >= 0 &&
+              xx < w.width &&
+              yy >= 0 &&
+              yy < w.height
+            )
+              ctx.fillRect(xx * 8, yy * 8, 8, 8);
+          }
         ctx.strokeStyle = "#fff1bf";
         ctx.lineWidth = 1 / c.zoom;
         ctx.beginPath();
@@ -350,6 +396,11 @@ export default function MapView(props: Props) {
         ctx.font = "600 11px system-ui";
         ctx.textAlign = "center";
         const label =
+          (latest.current.pair?.[0] === n.id
+            ? "① "
+            : latest.current.pair?.[1] === n.id
+              ? "② "
+              : "") +
           n.name.replace(" 왕국", "") +
           " · " +
           ERAS[eraOf(n)].name.replace(" 시대", "") +

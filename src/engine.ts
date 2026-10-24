@@ -1,3 +1,18 @@
+import {
+  validateProgress,
+  prepareProgress,
+  updateDirection,
+  advanceResearch,
+  updateIndustry,
+  type Tendencies,
+} from "./progression";
+import { ERAS, eraOf, housingCapacity } from "./eras";
+import {
+  enrichEvent,
+  captureAtlas,
+  type Chronicle,
+  type Atlas,
+} from "./history";
 import { nationName, nationColor } from "./identity";
 import { coldPatch } from "./cartography";
 import {
@@ -28,6 +43,10 @@ export interface Tile {
 }
 export interface Nation {
   id: number;
+  tendencies?: Tendencies;
+  eraHistory?: { era: number; year: number }[];
+  peakYear?: number;
+  lastRevoltYear?: number;
   foundedYear?: number;
   parentId?: number;
   originalName?: string;
@@ -58,8 +77,13 @@ export interface Relation {
   allianceSince?: number;
   aggressor?: number;
   reason?: string;
+  pastWars?: number;
+  grievance?: number;
+  pactYears?: number;
 }
 export interface History {
+  id?: number;
+  importance?: "major" | "normal";
   year: number;
   text: string;
   nations: number[];
@@ -72,6 +96,12 @@ export interface Effect {
 }
 export interface World {
   version: 1;
+  progressRevision?: number;
+  clockPhase?: number;
+  renderRevision?: number;
+  historySequence?: number;
+  chronicle?: Chronicle[];
+  atlases?: Atlas[];
   identityRevision?: number;
   cartographyRevision?: number;
   diplomacyLog?: DiplomaticEvent[];
@@ -130,7 +160,10 @@ export function record(
   nations: number[] = [],
   tile?: number,
 ) {
-  w.history.push({ year: w.year, text, nations, tile });
+  prepareProgress(w);
+  const event: History = { year: w.year, text, nations, tile };
+  enrichEvent(w, event);
+  w.history.push(event);
   if (w.history.length > 1200) w.history.shift();
 }
 export function found(
@@ -146,6 +179,7 @@ export function found(
     name: nationName(id),
     color: nationColor(id),
     foundedYear: w.year,
+    peakYear: w.year,
     parentId,
     capital: tile,
     population,
@@ -177,6 +211,12 @@ export function generate(o: Options): World {
   };
   const w: World = {
     version: 1,
+    progressRevision: 4,
+    clockPhase: 0,
+    renderRevision: 0,
+    historySequence: 0,
+    chronicle: [],
+    atlases: [],
     identityRevision: 2,
     cartographyRevision: 2,
     diplomacyLog: [],
@@ -271,7 +311,8 @@ export function generate(o: Options): World {
       const n = found(w, best, o.preset === "observe" ? 180 : 50);
       if (n && o.preset === "war") n.aggression = 0.95;
       if (n && o.preset === "observe") {
-        n.tech = 4.6 + random(w) * 1.3;
+        n.tech = 45 + random(w) * 60;
+        n.eraHistory = [{ era: eraOf(n), year: w.year }];
         n.population = 350;
         n.food = 1200;
         n.wealth = 1800;
@@ -306,11 +347,13 @@ function relation(w: World, a: number, b: number) {
   return r;
 }
 export function burden(n: Nation) {
-  return Math.max(0, n.territory / (48 + n.tech * 32) - 1) * 0.018;
+  return Math.max(0, n.territory / (72 + Math.sqrt(n.tech) * 120) - 1) * 0.006;
 }
 export function step(w: World) {
+  prepareProgress(w);
   prepareLife(w);
   w.year++;
+  w.renderRevision = (w.renderRevision || 0) + 1;
   w.effects = w.effects.filter((e) => --e.life > 0);
   for (const s of [...w.settlers]) {
     s.progress += w.tiles[s.tile].fertility;
@@ -319,6 +362,7 @@ export function step(w: World) {
       w.settlers.splice(w.settlers.indexOf(s), 1);
     }
   }
+  prepareLife(w);
   const holdings = new Map<number, number[]>();
   w.tiles.forEach((t, i) => {
     if (t.damage > 0) t.damage = Math.max(0, t.damage - 0.025);
@@ -330,7 +374,9 @@ export function step(w: World) {
   for (const n of w.nations.filter((n) => n.alive)) {
     const cells = holdings.get(n.id) || [];
     n.territory = cells.length;
+    if (n.territory > n.peak) n.peakYear = w.year;
     n.peak = Math.max(n.peak, n.territory);
+    updateDirection(w, n, cells);
     if (!cells.length || n.population < 2) {
       n.alive = false;
       for (const r of w.relations)
@@ -348,8 +394,20 @@ export function step(w: World) {
       (a, i) => a + w.tiles[i].fertility * (1 - w.tiles[i].damage),
       0,
     );
-    const capacity = productive * (12 + n.tech * 3);
-    const production = productive * (3 + n.tech * 0.5);
+    const effect = ERAS[eraOf(n)];
+    const housing =
+      w.life?.settlements
+        .filter((c) => c.nation === n.id)
+        .reduce((sum, c) => sum + c.homes * housingCapacity(n), 0) || 18;
+    const capacity = Math.min(
+      productive * (12 + Math.sqrt(n.tech) * 8) * effect.food,
+      housing * 1.18 + productive * 2,
+    );
+    const production =
+      productive *
+      (3 + Math.sqrt(n.tech) * 1.5) *
+      effect.food *
+      (0.8 + (n.tendencies?.agriculture || 0.2));
     n.food = clamp(n.food + production - n.population * 0.22, 0, capacity * 4);
     const fed = n.food > n.population * 0.25;
     const growth = fed
@@ -359,7 +417,10 @@ export function step(w: World) {
     n.wealth = Math.max(
       0,
       n.wealth +
-        n.population * 0.035 -
+        n.population *
+          0.035 *
+          effect.income *
+          (0.8 + (n.tendencies?.commerce || 0.2)) -
         cells.length * 0.08 +
         cells.reduce(
           (total, i) =>
@@ -367,7 +428,8 @@ export function step(w: World) {
           0,
         ),
     );
-    n.tech += researchRate(w, n) * (0.9 + random(w) * 0.2);
+    advanceResearch(w, n, researchRate(w, n) * (0.9 + random(w) * 0.2));
+    updateIndustry(w, n);
     n.stability = clamp(
       n.stability + (fed ? 0.008 : -0.025) - burden(n),
       0.02,
@@ -392,83 +454,33 @@ export function step(w: World) {
     const frontier = cells
       .flatMap((i) => neighbors(w, i))
       .filter((i) => land(w.tiles[i]) && w.tiles[i].owner !== n.id);
-    if (frontier.length && n.population > cells.length * 2 && n.wealth > 2) {
+    if (
+      frontier.length &&
+      n.population > cells.length * 2 &&
+      n.wealth > 50 + eraOf(n) * 30
+    ) {
       const i = frontier[Math.floor(random(w) * frontier.length)],
         t = w.tiles[i];
       if (!t.owner) {
         t.owner = n.id;
         n.wealth -= 2;
-      } else {
-        const other = w.nations[t.owner - 1];
-        if (other?.alive) {
-          const r = relation(w, n.id, other.id);
-          r.score = clamp(
-            r.score +
-              (n.food < n.population ? -0.06 : 0.012) -
-              n.aggression * 0.025,
-            -1,
-            1,
-          );
-          if (
-            !r.war &&
-            !r.allied &&
-            r.score < -0.25 &&
-            n.aggression > 0.55 &&
-            w.year - r.since > 18 &&
-            n.stability > 0.4
-          ) {
-            treaty(
-              w,
-              r,
-              "war",
-              n.food < n.population
-                ? "국경의 식량 부족과 영토 경쟁으로 관계가 악화되었습니다."
-                : "국경 확장 경쟁과 지도자의 팽창 정책으로 개전했습니다.",
-              n.id,
-            );
-            record(
-              w,
-              n.name + "과 " + other.name + " 사이에 전쟁 발발",
-              [n.id, other.id],
-              i,
-            );
-          }
-          if (r.war) {
-            // Occupation now requires a physical army to reach and besiege a tile.
-            n.wealth = Math.max(0, n.wealth - 2);
-            n.stability = Math.max(0.02, n.stability - 0.008);
-            if (
-              w.year - r.since > 15 &&
-              (n.stability < 0.45 || other.stability < 0.45 || random(w) < 0.04)
-            ) {
-              treaty(
-                w,
-                r,
-                "peace",
-                "장기전과 국내 불안으로 휴전에 합의했습니다.",
-              );
-              record(
-                w,
-                n.name + "과 " + other.name + " 평화협정",
-                [n.id, other.id],
-                i,
-              );
-            }
-          } else if (r.score > 0.2) {
-            n.food += 1;
-            n.wealth += 0.6;
-            n.tech += other.tech * 0.0002;
-          }
-        }
       }
     }
-    if (n.stability < 0.22 && cells.length > 24 && n.population > 100) {
+    if (
+      n.stability < 0.22 &&
+      cells.length > 120 &&
+      n.population > 400 &&
+      w.year - (n.lastRevoltYear ?? n.foundedYear ?? 0) > 150
+    ) {
+      n.lastRevoltYear = w.year;
       const far = cells.reduce((a, b) =>
         Math.abs(a - n.capital) > Math.abs(b - n.capital) ? a : b,
       );
       w.tiles[far].owner = 0;
       const rebel = found(w, far, n.population * 0.18, n.id);
       if (rebel) {
+        rebel.tech = n.tech * 0.85;
+        rebel.eraHistory = [{ era: eraOf(rebel), year: w.year }];
         n.population *= 0.82;
         n.stability += 0.25;
         for (const i of cells)
@@ -498,6 +510,7 @@ export function step(w: World) {
   }
   updateDiplomacy(w);
   updateLife(w, holdings);
+  captureAtlas(w);
 }
 export const TOOLS: Record<
   string,
@@ -703,6 +716,8 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
       w.tiles[tile].owner = 0;
       const n = found(w, tile, target.population * 0.15, target.id);
       if (n) {
+        n.tech = target.tech * 0.85;
+        n.eraHistory = [{ era: eraOf(n), year: w.year }];
         target.population *= 0.85;
         record(w, n.name + " 독립 · 신의 개입", [target.id, n.id], tile);
       }
@@ -890,6 +905,7 @@ export function validate(data: unknown): data is World {
     Number.isInteger(w.seed) &&
     finite(w.seed, -2147483648, 2147483647) &&
     ["empty", "dawn", "four", "islands", "war", "observe"].includes(w.preset) &&
+    validateProgress(w) &&
     validateDiplomacy(w) &&
     validateLife(w)
   );

@@ -1,3 +1,6 @@
+import HistoryOverview from "./HistoryOverview";
+import { DIRECTIONS, developmentGate } from "./progression";
+import { equipmentEra } from "./eras";
 import DiplomacyView from "./DiplomacyView";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -91,6 +94,17 @@ function App() {
       return true;
     }
   });
+  const [worldEpoch, setWorldEpoch] = useState(0);
+  const [canUndo, setCanUndo] = useState(false);
+  const [pair, setPair] = useState<[number, number]>([0, 0]);
+  const [pairSide, setPairSide] = useState<0 | 1>(0);
+  useEffect(() => {
+    setPair([0, 0]);
+    setPairSide(0);
+  }, [worldEpoch]);
+  const [eventLevel, setEventLevel] = useState("major");
+  const cameraLast = useRef(0);
+  const seenEvent = useRef(0);
   const [autoCamera, setAutoCamera] = useState(false);
   const [slotList, setSlotList] = useState<
     { key: string; world: World; date: number }[]
@@ -110,7 +124,16 @@ function App() {
       type: "module",
     });
     worker.current = w;
-    w.onmessage = (e) => setWorld(e.data);
+    w.onmessage = (e) => {
+      if (e.data.world) setWorld(e.data.world);
+      else if (typeof e.data.clockPhase === "number")
+        setWorld((previous) =>
+          previous ? { ...previous, clockPhase: e.data.clockPhase } : previous,
+        );
+      setWorldEpoch(e.data.epoch || 0);
+      setCanUndo(!!e.data.canUndo);
+      if (e.data.notice) notify(e.data.notice);
+    };
     w.onerror = () =>
       notify(
         "시뮬레이션 오류가 발생했습니다. 새로고침 후 저장된 세계를 불러오세요.",
@@ -205,14 +228,19 @@ function App() {
     };
   }, [panel]);
   useEffect(() => {
-    if (autoCamera && ui.observe && world?.history.at(-1)?.tile !== undefined)
-      setFocus(world.history.at(-1)!.tile!);
-  }, [
-    world?.history.at(-1)?.year,
-    world?.history.at(-1)?.text,
-    autoCamera,
-    ui.observe,
-  ]);
+    const major = world?.history.filter((e) => e.importance === "major").at(-1);
+    if (!major || !major.id || major.id === seenEvent.current) return;
+    seenEvent.current = major.id;
+    if (
+      autoCamera &&
+      ui.observe &&
+      major.tile !== undefined &&
+      performance.now() - cameraLast.current > 12000
+    ) {
+      setFocus(major.tile);
+      cameraLast.current = performance.now();
+    }
+  }, [world, autoCamera, ui.observe]);
   const openSave = async () => {
     setPanel("save");
     try {
@@ -317,25 +345,118 @@ function App() {
         {world ? (
           <MapView
             world={world}
+            worldEpoch={worldEpoch}
+            pair={
+              ["war", "alliance", "peace"].includes(ui.tool) ? pair : undefined
+            }
             tool={ui.tool}
             radius={ui.radius}
             political={ui.political}
             focus={focus}
             command={viewCommand}
             paused={ui.paused}
+            speed={ui.speed}
+            onStroke={(begin) => {
+              if (!["war", "alliance", "peace"].includes(ui.tool))
+                worker.current?.postMessage({ type: begin ? "begin" : "end" });
+            }}
             onHover={setHoverTile}
             onSelect={(id) => setSelected(id)}
-            onUse={(tile) =>
+            onUse={(tile) => {
+              if (["war", "alliance", "peace"].includes(ui.tool)) {
+                const id = world.tiles[tile].owner;
+                if (id) {
+                  setPair((p) => (pairSide === 0 ? [id, p[1]] : [p[0], id]));
+                  setPairSide(pairSide === 0 ? 1 : 0);
+                }
+                return;
+              }
               worker.current?.postMessage({
                 type: "apply",
                 tool: ui.tool,
                 tile,
                 radius: ui.radius,
-              })
-            }
+              });
+            }}
           />
         ) : (
           <div className="loading">✦ 세계를 빚고 있습니다…</div>
+        )}
+        {["war", "alliance", "peace"].includes(ui.tool) && (
+          <aside className="intervention-picker">
+            <strong>두 국가 지정 · {TOOLS[ui.tool].label}</strong>
+            <label>
+              실행할 개입{" "}
+              <select
+                aria-label="실행할 외교 개입"
+                value={ui.tool}
+                onChange={(e) => ui.set({ tool: e.target.value })}
+              >
+                <option value="war">전쟁</option>
+                <option value="alliance">동맹</option>
+                <option value="peace">평화</option>
+              </select>
+            </label>
+            <small>선택할 쪽을 누른 뒤 지도 또는 목록에서 지정하세요.</small>
+            {([0, 1] as const).map((side) => (
+              <label key={side}>
+                <button
+                  aria-pressed={pairSide === side}
+                  onClick={() => setPairSide(side)}
+                >
+                  {side === 0 ? "대상" : "상대"} 선택
+                </button>
+                <select
+                  aria-label={side === 0 ? "개입 대상 국가" : "개입 상대 국가"}
+                  value={pair[side]}
+                  onChange={(e) =>
+                    setPair((p) =>
+                      side === 0
+                        ? [+e.target.value, p[1]]
+                        : [p[0], +e.target.value],
+                    )
+                  }
+                >
+                  <option value={0}>국가 지정</option>
+                  {world?.nations
+                    .filter((n) => n.alive)
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ))}
+            <button
+              disabled={!pair[0] || !pair[1] || pair[0] === pair[1]}
+              onClick={() =>
+                worker.current?.postMessage({
+                  type: "intervene",
+                  a: pair[0],
+                  b: pair[1],
+                  action: ui.tool,
+                })
+              }
+            >
+              지정한 두 국가에 적용
+            </button>
+            <button
+              disabled={!pair[0]}
+              onClick={() =>
+                worker.current?.postMessage({
+                  type: "apply",
+                  tool: ui.tool,
+                  tile: world!.nations[pair[0] - 1].capital,
+                  radius: 1,
+                })
+              }
+            >
+              {ui.tool === "peace"
+                ? "빠른 평화 · 대상의 모든 전쟁 종료"
+                : "빠른 개입 · 가까운 국가 자동 선택"}
+            </button>
+          </aside>
         )}
         <div className="world-status">
           <span className="eyebrow">
@@ -373,6 +494,16 @@ function App() {
           )}
         </div>
         <div className="map-actions">
+          <button
+            className="undo-action"
+            aria-label="개입 실행 취소"
+            disabled={!canUndo}
+            title="직전 개입 직전의 세계 상태로 복원합니다"
+            onClick={() => worker.current?.postMessage({ type: "undo" })}
+          >
+            ↶ 취소
+          </button>
+
           <button
             className={ui.political ? "active" : ""}
             title="국가의 영토와 국경 표시"
@@ -558,11 +689,23 @@ function App() {
                 <b>{cities.length}개 정착지</b>
               </div>
               <p>{ERAS[eraOf(n)].description}</p>
+              <small>
+                {developmentGate(world!, n) ||
+                  "현재 경제·안정성에 따라 연구 진행 중"}
+              </small>
+              <p className="muted">
+                발전 방향 ·{" "}
+                {Object.entries(n.tendencies || {})
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 2)
+                  .map(([k]) => DIRECTIONS[k as keyof typeof DIRECTIONS])
+                  .join(" · ")}
+              </p>
               <div className="era-progress">
                 <i
                   style={{
                     width:
-                      (eraOf(n) === 5
+                      (eraOf(n) === ERAS.length - 1
                         ? 100
                         : ((n.tech - ERAS[eraOf(n)].threshold) /
                             (ERAS[eraOf(n) + 1].threshold -
@@ -572,8 +715,8 @@ function App() {
                 />
               </div>
               <small>
-                {eraOf(n) === 5
-                  ? "항공 교역 기술을 갖춘 문명"
+                {eraOf(n) === ERAS.length - 1
+                  ? "최종 시대 이후에도 연구·도시·탐사 발전 중"
                   : "다음 시대 · " + ERAS[eraOf(n) + 1].name}
               </small>
               <button
@@ -591,6 +734,21 @@ function App() {
             </section>
             {polity && (
               <div className="power-status">
+                <details>
+                  <summary>기반 시설과 연구 자산</summary>
+                  <p>
+                    전력 {polity.energy?.toFixed(1) || 0} · 산업 시설{" "}
+                    {cities
+                      .reduce((sum, c) => sum + (c.industry || 0), 0)
+                      .toFixed(1)}{" "}
+                    · 통신망{" "}
+                    {cities
+                      .reduce((sum, c) => sum + (c.network || 0), 0)
+                      .toFixed(1)}{" "}
+                    · 위성 {polity.satellites || 0} · 탐사 사업{" "}
+                    {polity.probes || 0}
+                  </p>
+                </details>
                 <span>
                   정치 체제{" "}
                   <b>
@@ -679,7 +837,7 @@ function App() {
                   "머스킷",
                   "소총 · 헬멧",
                   "현대 소총 · 헬멧",
-                ][eraOf(n)]
+                ][equipmentEra(n)]
               }
             </p>
             <div className="city-activity">
@@ -797,27 +955,42 @@ function App() {
             </button>
           </div>
         )}
-        <div className="event-feed">
-          <span className="event-indicator">
-            <Icon name="history" size={16} />
-          </span>
-          <p>
-            {world?.history.at(-1) ? (
-              <>
-                <b>{world.history.at(-1)!.year}년</b>{" "}
-                {world.history.at(-1)!.text}
-              </>
-            ) : (
-              "아직 쓰이지 않은 이야기 · 첫 생명을 기다리는 세계"
-            )}
-          </p>
-          <button onClick={() => setPanel("history")} aria-label="역사 펼치기">
-            <Icon name="arrow" size={16} />
-          </button>
-        </div>
+        {eventLevel !== "off" && (
+          <div className="event-feed event-stack" role="log" aria-live="polite">
+            <span className="event-indicator">
+              <Icon name="history" size={16} />
+            </span>
+            <div>
+              {world?.history
+                .filter((e) => eventLevel === "all" || e.importance === "major")
+                .slice(eventLevel === "all" ? -3 : -1)
+                .reverse()
+                .map((e, i) => (
+                  <button
+                    className="event-location"
+                    key={e.id ?? i}
+                    onClick={() => {
+                      if (e.tile !== undefined) setFocus(e.tile);
+                    }}
+                  >
+                    <b>{e.year}년</b> {e.text}
+                  </button>
+                ))}
+            </div>
+            <button
+              onClick={() => setPanel("history")}
+              aria-label="역사 펼치기"
+            >
+              <Icon name="arrow" size={16} />
+            </button>
+          </div>
+        )}
       </section>
       <footer>
-        <div className="time-controls">
+        <div
+          className="time-controls"
+          title="1배속: 4초에 1년 · 20배속: 초당 5년"
+        >
           <button
             className="play"
             aria-label={ui.paused ? "재생" : "일시정지"}
@@ -1059,6 +1232,29 @@ function App() {
                 <p className="muted">
                   실제 세계에서 일어난 중요한 변화만 기록합니다.
                 </p>
+                <div className="observation-settings">
+                  <label>
+                    사건 표시{" "}
+                    <select
+                      aria-label="사건 표시량"
+                      value={eventLevel}
+                      onChange={(e) => setEventLevel(e.target.value)}
+                    >
+                      <option value="major">주요 사건 1개</option>
+                      <option value="all">최근 사건 3개</option>
+                      <option value="off">숨김</option>
+                    </select>
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={autoCamera}
+                      onChange={(e) => setAutoCamera(e.target.checked)}
+                    />{" "}
+                    주요 사건 자동 이동 (관찰 모드, 최소 12초 간격)
+                  </label>
+                </div>
+                {world && <HistoryOverview world={world} />}
                 {world && <DiplomacyView world={world} />}
                 <div className="history-list">
                   {world?.history

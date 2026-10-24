@@ -30,13 +30,11 @@ test("외교 상태를 가리키거나 키보드로 초점을 옮겨 원인을 �
   await page.goto("/");
   await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "diplomacy.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(w)),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "diplomacy.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(w)),
+  });
   const alliance = page.locator(".diplomacy-status").nth(1).getByRole("button");
   await alliance.focus();
   await expect(page.locator(".diplomacy-preview").nth(1)).toBeVisible();
@@ -298,13 +296,13 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     }
   }
   for (const n of w.nations) {
-    n.tech = 8;
+    n.tech = 91;
     n.food = 5000;
     n.wealth = 5000;
     n.aggression = 0.2;
   }
   refreshLife(w);
-  for (let i = 0; i < 80; i++) step(w);
+  for (let i = 0; i < 180; i++) step(w);
   expect(w.life!.flights.length).toBeGreaterThan(0);
   await page.goto("/");
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
@@ -315,12 +313,12 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(w)),
   });
-  await expect(page.locator(".year")).toContainText("80");
+  await expect(page.locator(".year")).toContainText("180");
   await page
     .locator(".kingdom-list button")
     .filter({ hasText: w.nations[0].name })
     .click();
-  await expect(page.locator(".era-label")).toHaveText("항공 시대");
+  await expect(page.locator(".era-label")).toHaveText("정보 문명");
   await page.getByRole("button", { name: "도시 가까이 보기" }).click();
   await expect(page.locator(".city-activity")).toContainText("항공기 1대");
   await page.screenshot({ path: "test-results/aviation-city.png" });
@@ -334,6 +332,7 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     return value;
   };
   const before = await snapshot();
+  await page.getByRole("button", { name: "5×", exact: true }).click();
   await page.getByRole("button", { name: "재생", exact: true }).click();
   await expect
     .poll(async () =>
@@ -406,8 +405,9 @@ test("전선에서 군대를 확인하고 평화 능력으로 즉시 해산시�
   await page.screenshot({ path: "test-results/battle-front.png" });
   await page.getByRole("button", { name: "문명", exact: true }).click();
   await page.getByRole("button", { name: "평화", exact: true }).click();
-  const box = (await page.getByLabel("문명 세계 지도").boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.getByLabel("개입 대상 국가").selectOption("1");
+  await page.getByLabel("개입 상대 국가").selectOption("2");
+  await page.getByRole("button", { name: "지정한 두 국가에 적용" }).click();
   await expect(page.locator(".stats b").nth(2)).toHaveText("0");
   await expect(page.locator(".city-activity")).toContainText("군대 0개 부대");
 });
