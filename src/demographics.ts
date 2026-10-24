@@ -42,11 +42,15 @@ export function demographicYear(
       (1 - infantDeath) * adultLongevity - infantDeath * 16 - pressure * 4,
     ),
   );
+  // Lower housing pressure frees space/resources for families. This is a
+  // capacity feedback, not a population floor or externally created people.
+  const familySpace = Math.max(0, 1 - total / Math.max(1, u.capacity));
   u.fertility = Math.max(
     1.25,
     Math.min(
       6.2,
-      5.8 -
+      5.8 +
+        familySpace * 1.05 -
         u.education * 3.5 -
         u.medicine * 0.9 -
         Math.max(0, era - 7) * 0.08 -
@@ -79,9 +83,9 @@ export function demographicYear(
     Math.max(0, u.cohorts[2] + adultToOld - elderLoss) * (1 - starvation),
   ];
   u.births = births;
-  u.deaths = deaths;
+  u.deaths = Math.max(0, total + births - sum(u.cohorts));
   u.stock.food = Math.max(0, u.stock.food - total * 0.22);
-  return { births, deaths, adultLongevity };
+  return { births, deaths:u.deaths, adultLongevity };
 }
 export const emptyDemography = (): Demography => ({
   cohorts: [0, 0, 0],

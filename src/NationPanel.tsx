@@ -1,3 +1,4 @@
+import { leaderLabels } from "./archives";
 import { useEffect, useRef } from "react";
 import type { Nation, World } from "./engine";
 import { eraOf, ERAS } from "./eras";
@@ -47,7 +48,7 @@ export default function NationPanel({
       (w.living?.vehicles.filter((v) => v.nation === n.id && v.mode === "air")
         .length || 0);
   const scene = skylineSvg({
-    era: e,
+    era: Math.min(e, Math.floor(primary?.development ?? e), u?.builtEra ?? e),
     culture: culture?.id || 0,
     population: n.population,
     farm: cities.some((c) => c.urban?.roles.includes("farm")) ? 1 : 0,
@@ -58,7 +59,7 @@ export default function NationPanel({
     war: armies.length,
     research: cities.some((c) => c.urban?.roles.includes("research")) ? 1 : 0,
     river: !!w.tiles[n.capital]?.river,
-    damage: u?.damage || 0,
+    damage: Math.max(u?.damage || 0, (u?.neglect || 0) * 0.8),
   });
   useEffect(() => {
     const el = mini.current;
@@ -246,6 +247,15 @@ export default function NationPanel({
             <small>
               {c.urban?.roles.map((r) => ROLE_NAMES[r]).join(" · ")} ·{" "}
               {Math.round(c.population).toLocaleString()}명
+              {c.urban?.lifecycle && c.urban.lifecycle !== "active"
+                ? " · " +
+                  { declining: "쇠퇴", ruin: "폐허", recovering: "회복" }[
+                    c.urban.lifecycle
+                  ] +
+                  " · 가동 " +
+                  Math.round((c.urban.operation || 0) * 100) +
+                  "%"
+                : ""}
             </small>
           </button>
         ))}
@@ -294,6 +304,19 @@ export default function NationPanel({
           </small>
         </div>
       </section>
+      {n.leaderTraits && (
+        <section className="leader-traits">
+          <b>지도자의 판단 성향</b>
+          <div>
+            {leaderLabels(n.leaderTraits).map((label) => (
+              <span key={label}>{label}</span>
+            ))}
+          </div>
+          <small>
+            국가의 장기 정책과 구분되며, 협정·개전 판단에 소폭 반영됩니다.
+          </small>
+        </section>
+      )}
       <div className="city-activity">
         <span>
           주민 {w.life?.citizens.filter((c) => c.nation === n.id).length || 0}개

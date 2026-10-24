@@ -47,12 +47,14 @@ self.onmessage = ({ data }) => {
   if (data.type === "generate") {
     epoch++;
     world = generate(data.options);
+    world.worldId=crypto.randomUUID();
     undo = undefined;
     send();
   }
   if (data.type === "load" && validate(data.world)) {
     epoch++;
     world = upgradeWorld(data.world);
+    world.worldId??=crypto.randomUUID();
     prepareProgress(world);
     initializeDiplomacy(world);
     ensureLiving(world);

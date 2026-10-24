@@ -14,7 +14,7 @@ test("quiet map display controls and contextual diplomacy remain usable", async 
   await page.getByLabel("국가 이름 · 레벨").check();
   await page.getByLabel("선택 국가의 외교 연결").check();
   await page.screenshot({
-    path: "docs/screenshots-0.5/quiet-map-settings.png",
+    path: "docs/screenshots-0.6/quiet-map-settings.png",
   });
   await page.getByRole("button", { name: "표시", exact: true }).click();
   for(const sort of ['alliance','religion','level','territory','population']) {
@@ -29,7 +29,7 @@ test("quiet map display controls and contextual diplomacy remain usable", async 
   await expect(page.locator(".diplomatic-card")).toContainText("문명 Lv.");
   await expect(page.locator(".diplomatic-card")).toContainText("동맹국");
   await page.screenshot({
-    path: "docs/screenshots-0.5/quiet-map-diplomacy.png",
+    path: "docs/screenshots-0.6/quiet-map-diplomacy.png",
   });
   expect(errors).toEqual([]);
 });

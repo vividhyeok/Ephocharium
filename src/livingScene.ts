@@ -46,7 +46,7 @@ export function drawHydrology(ctx: CanvasRenderingContext2D, w: World) {
 }
 export function drawLivingFacilities(ctx: CanvasRenderingContext2D, w: World) {
   for (const c of w.life?.settlements || []) {
-    if (!c.urban) continue;
+    if (!c.urban || c.urban.lifecycle==='ruin' || (c.urban.operation??1)<.15) continue;
     const u = c.urban,
       x = (c.tile % w.width) * 8 + 4,
       y = Math.floor(c.tile / w.width) * 8 + 4,

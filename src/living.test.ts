@@ -95,6 +95,7 @@ it("cargo leaves a real warehouse and arrives only after traversing its route", 
   for (const t of w.tiles) t.owner = 0;
   a.urban!.stock = emptyStock();
   b.urban!.stock = emptyStock();
+  b.urban!.operation = 0; // Empty settlements must still receive supplies and recover.
   a.urban!.stock.iron = 100;
   const total = () =>
     a.urban!.stock.iron +

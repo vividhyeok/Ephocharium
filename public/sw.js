@@ -1,4 +1,4 @@
-const CACHE = "epocharium-0.5.1";
+const CACHE = "epocharium-0.6.0";
 self.addEventListener("install", (event) =>
   event.waitUntil(
     caches
@@ -27,6 +27,7 @@ self.addEventListener("fetch", (event) => {
   if (
     event.request.method !== "GET" ||
     url.origin !== self.location.origin ||
+    url.pathname.startsWith("/api/") ||
     url.pathname.includes("/@") ||
     url.pathname.startsWith("/src/")
   )

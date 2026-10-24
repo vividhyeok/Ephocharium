@@ -97,6 +97,13 @@ export function researchRate(w: World, n: Nation) {
   const p = w.life?.polities.find((p) => p.nation === n.id),
     e = eraOf(n),
     war = w.relations.some((r) => r.war && (r.a === n.id || r.b === n.id));
+  const minimumStaff = [
+    0, 10, 20, 35, 55, 80, 110, 150, 210, 300, 425, 600, 850, 1100,
+  ][e];
+  if (n.population < minimumStaff)
+    return (
+      -Math.max(0.001, n.tech * 0.0008) * (1 - n.population / minimumStaff)
+    );
   if (n.stability < 0.24 || n.food < n.population * 0.1)
     return -Math.min(0.035, n.tech * 0.00018) * (war ? 1.5 : 1);
   if (
@@ -162,9 +169,12 @@ export function updateIndustry(w: World, n: Nation) {
         Math.min(
           1 + (e - 7) * 0.3,
           (c.industry || 0) +
-            (e >= 7 && investment && consumeNation(w, n, "metal", 0.008)
+            (e >= 7 &&
+            investment &&
+            (c.urban?.operation ?? 1) > 0.3 &&
+            consumeNation(w, n, "metal", 0.008)
               ? growth
-              : 0),
+              : -0.01),
         ),
       );
       c.network = Math.max(

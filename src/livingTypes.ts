@@ -51,6 +51,9 @@ export type CityRole =
   | "research"
   | "junction";
 export interface CityData {
+  operation?: number;
+  neglect?: number;
+  lifecycle?: "active" | "declining" | "ruin" | "recovering";
   stock: Inventory;
   cohorts: Cohorts;
   roles: CityRole[];

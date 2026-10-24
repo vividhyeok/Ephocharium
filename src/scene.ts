@@ -247,8 +247,23 @@ export function drawInfrastructure(
   for (const c of s.settlements) {
     const n = w.nations[c.nation - 1];
     if (!n?.alive || w.tiles[c.tile].owner !== n.id) continue;
-    const era = Math.min(eraOf(n), Math.floor(c.development)),
+    const operation = c.urban?.operation ?? 1;
+    const era = Math.min(
+        eraOf(n),
+        Math.floor(c.development),
+        c.urban?.builtEra ?? 13,
+      ),
       p = coordinates(w, c.tile);
+    if (c.urban?.lifecycle === "ruin") {
+      ctx.fillStyle = "#7c827270";
+      ctx.fillRect(p.x - 8, p.y - 5, 16, 12);
+      ctx.fillStyle = "#aaa38a";
+      ctx.fillRect(p.x - 6, p.y - 2, 3, 6);
+      ctx.fillRect(p.x + 2, p.y, 5, 3);
+      ctx.fillStyle = "#6a8669";
+      ctx.fillRect(p.x - 4, p.y + 3, 8, 2);
+      continue;
+    }
     ctx.fillStyle = era >= 7 ? "#b7b7a17a" : "#caba857a";
     ctx.fillRect(p.x - 5, p.y - 4, 10, 10);
     const structures =
@@ -308,7 +323,10 @@ export function drawInfrastructure(
       }
       if (
         ++count >=
-        Math.min(structures, detail === 0 ? 1 : detail === 1 ? 4 : 10)
+        Math.min(
+          Math.max(1, Math.ceil(structures * (0.25 + operation * 0.75))),
+          detail === 0 ? 1 : detail === 1 ? 4 : 10,
+        )
       )
         break;
     }

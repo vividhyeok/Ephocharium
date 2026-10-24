@@ -1,22 +1,26 @@
 {
   "name": "epocharium",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dev:epi": "node scripts/epi-dev.mjs",
+    "benchmark": "node scripts/benchmark-0.6.mjs"
   },
   "dependencies": {
     "idb": "^8.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "zod": "^4.6.7",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.53.0",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.5.0",

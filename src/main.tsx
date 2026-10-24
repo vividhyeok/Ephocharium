@@ -1,4 +1,6 @@
-import NationBrowser from './NationBrowser';
+import EpiPanel from "./epi/EpiPanel";
+import { useEpiReports } from "./epi/reports";
+import NationBrowser from "./NationBrowser";
 import NationPanel from "./NationPanel";
 import { patchWorld } from "./wire";
 import HistoryOverview from "./HistoryOverview";
@@ -67,7 +69,7 @@ const PRESETS: {
 ];
 function App() {
   const ui = useUI();
-  const [displayMenu,setDisplayMenu]=useState(false);
+  const [displayMenu, setDisplayMenu] = useState(false);
   const [world, setWorld] = useState<World>();
   const worldRef = useRef<World | undefined>(undefined);
   worldRef.current = world;
@@ -76,6 +78,23 @@ function App() {
     "new" | "history" | "save" | "help" | null
   >(null);
   const [selected, setSelected] = useState(0);
+  const [epiOpen, setEpiOpen] = useState(false),
+    [epiPrompt, setEpiPrompt] = useState("");
+  const [reportsEnabled, setReportsEnabled] = useState(() => {
+    try {
+      return localStorage.getItem("epi-reports") !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const { report, dismiss: dismissReport } = useEpiReports(
+    world,
+    reportsEnabled,
+  );
+  useEffect(() => {
+    setEpiOpen(false);
+    setEpiPrompt("");
+  }, [world?.worldId]);
   const [hoverTile, setHoverTile] = useState(-1);
   const [focus, updateFocus] = useState<{
     tile: number;
@@ -199,6 +218,7 @@ function App() {
       if (e.key === "Escape") {
         setPanel(null);
         setSelected(0);
+        setEpiOpen(false);
         ui.set({ tool: "inspect" });
       }
       const speeds = [1, 2, 5, 10, 20];
@@ -343,9 +363,55 @@ function App() {
           <button onClick={() => setPanel("help")} aria-label="도움말">
             <Icon name="help" size={17} />
           </button>
+          <button
+            className="epi-open"
+            aria-label="에피"
+            aria-expanded={epiOpen}
+            disabled={!world}
+            onClick={() => setEpiOpen(!epiOpen)}
+          >
+            <img src="/art/epi.svg" alt="" />
+            <span>에피</span>
+          </button>
         </nav>
       </header>
-      <section className="viewport">
+      <section className={"viewport" + (epiOpen ? " epi-visible" : "")}>
+        {world && epiOpen && (
+          <EpiPanel
+            key={world.worldId || world.seed}
+            world={world}
+            selected={selected}
+            prompt={epiPrompt}
+            onClose={() => setEpiOpen(false)}
+            onNation={(id) => {
+              const nation = world.nations.find((n) => n.id === id);
+              if (nation) {
+                setSelected(id);
+                setFocus(nation.capital);
+              }
+            }}
+          />
+        )}
+        {report && !epiOpen && reportsEnabled && (
+          <div className="epi-report">
+            <img src="/art/epi.svg" alt="" />
+            <button
+              onClick={() => {
+                setEpiPrompt(report.year+'년의 보고: '+report.text + " 이 사건의 배경과 영향을 설명해줘");
+                setEpiOpen(true);
+                if (report.tile !== undefined) setFocus(report.tile);
+                if (report.nation) setSelected(report.nation);
+                dismissReport();
+              }}
+            >
+              <small>에피 · {report.year.toLocaleString()}년</small>
+              {report.text}
+            </button>
+            <button aria-label="에피 보고 닫기" onClick={dismissReport}>
+              ×
+            </button>
+          </div>
+        )}
         {world && (
           <DiplomacyView
             world={world}
@@ -363,7 +429,10 @@ function App() {
             tool={ui.tool}
             radius={ui.radius}
             political={ui.political}
-            labels={ui.labels} cities={ui.cities} diplomacy={ui.diplomacy} selected={selected}
+            labels={ui.labels}
+            cities={ui.cities}
+            diplomacy={ui.diplomacy}
+            selected={selected}
             focus={focus}
             command={viewCommand}
             paused={ui.paused}
@@ -536,13 +605,64 @@ function App() {
           >
             <Icon name="history" size={15} /> 역사
           </button>
-          <button aria-expanded={displayMenu} onClick={()=>setDisplayMenu(!displayMenu)}><Icon name="settings" size={15}/> 표시</button>
-          {displayMenu&&<div className="display-menu" role="group" aria-label="지도 표시 설정">
-            <label><input type="checkbox" checked={ui.labels} onChange={e=>ui.set({labels:e.target.checked})}/>국가 이름 · 레벨</label>
-            <label><input type="checkbox" checked={ui.cities} onChange={e=>ui.set({cities:e.target.checked})}/>확대 시 도시 이름</label>
-            <label><input type="checkbox" checked={ui.diplomacy} onChange={e=>ui.set({diplomacy:e.target.checked})}/>선택 국가의 외교 연결</label>
-            <small>국가에 마우스를 올리면 동맹은 청록색, 전쟁은 주홍색 선으로 표시됩니다.</small>
-          </div>}
+          <button
+            aria-expanded={displayMenu}
+            onClick={() => setDisplayMenu(!displayMenu)}
+          >
+            <Icon name="settings" size={15} /> 표시
+          </button>
+          {displayMenu && (
+            <div
+              className="display-menu"
+              role="group"
+              aria-label="지도 표시 설정"
+            >
+              <label>
+                <input
+                  type="checkbox"
+                  checked={ui.labels}
+                  onChange={(e) => ui.set({ labels: e.target.checked })}
+                />
+                국가 이름 · 레벨
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={ui.cities}
+                  onChange={(e) => ui.set({ cities: e.target.checked })}
+                />
+                확대 시 도시 이름
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={ui.diplomacy}
+                  onChange={(e) => ui.set({ diplomacy: e.target.checked })}
+                />
+                선택 국가의 외교 연결
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={reportsEnabled}
+                  onChange={(e) => {
+                    setReportsEnabled(e.target.checked);
+                    try {
+                      localStorage.setItem(
+                        "epi-reports",
+                        e.target.checked ? "on" : "off",
+                      );
+                    } catch {}
+                  }}
+                />
+                에피의 조용한 사건 보고
+              </label>
+              <small>
+                국가에 마우스를 올리면 동맹은 청록색, 전쟁은 주홍색 선으로
+                표시됩니다.
+              </small>
+            </div>
+          )}
         </div>
         {!ui.observe && world && (
           <div className="atlas-corner">
@@ -560,7 +680,15 @@ function App() {
               </span>
               <small>{alive.length}</small>
             </div>
-            {world&&<NationBrowser world={world} onSelect={nation=>{setSelected(nation.id);setFocus(nation.capital)}}/>}
+            {world && (
+              <NationBrowser
+                world={world}
+                onSelect={(nation) => {
+                  setSelected(nation.id);
+                  setFocus(nation.capital);
+                }}
+              />
+            )}
             <button
               className="kingdom-history"
               onClick={() => setPanel("history")}
@@ -588,7 +716,15 @@ function App() {
                 목재 <b>{Math.round(tile.wood || 0)}</b>
               </span>
               <span>
-                광물 <b>{Math.round(Object.values(tile.deposits||{}).reduce((s,v)=>s+(v||0),0))}</b>
+                광물{" "}
+                <b>
+                  {Math.round(
+                    Object.values(tile.deposits || {}).reduce(
+                      (s, v) => s + (v || 0),
+                      0,
+                    ),
+                  )}
+                </b>
               </span>
               <span>
                 비옥도 <b>{Math.round(tile.fertility * 100)}%</b>
@@ -600,7 +736,11 @@ function App() {
                   name={hoveredPerson.role === "ruler" ? "revolt" : "human"}
                   size={13}
                 />
-                <b>{hoveredPerson.role==='ruler'?hoveredPerson.name:ROLES[hoveredPerson.role]+' 집단'}</b>
+                <b>
+                  {hoveredPerson.role === "ruler"
+                    ? hoveredPerson.name
+                    : ROLES[hoveredPerson.role] + " 집단"}
+                </b>
                 <small>
                   {hoveredPerson.route.length
                     ? "일터로 이동 중"

@@ -1,3 +1,4 @@
+import { prepareArchive } from "./archives";
 import { record, type World, type Nation } from "./engine";
 import { prepareLife, type Settlement } from "./civilization";
 import { eraOf, ERAS, housingCapacity } from "./eras";
@@ -23,7 +24,8 @@ export function createCity(w: World, c: Settlement) {
     stock = emptyStock(),
     cities = w.life!.settlements.filter((x) => x.nation === n.id),
     p = w.life!.polities.find((p) => p.nation === n.id);
-  const established = c.population <= 0 && cities.some((x) => x.id !== c.id && x.urban);
+  const established =
+    c.population <= 0 && cities.some((x) => x.id !== c.id && x.urban);
   stock.food = established ? 0 : n.food / Math.max(1, cities.length);
   stock.timber = (p?.wood || 15) / Math.max(1, cities.length);
   stock.metal = (p?.metal || 5) / Math.max(1, cities.length);
@@ -90,6 +92,7 @@ export function ensureLiving(w: World, newTerrain = false) {
     n.demography ??= emptyDemography();
   }
   for (const c of w.life!.settlements) createCity(w, c);
+  prepareArchive(w);
 }
 export function reconcileLiving(w: World) {
   if (!w.living || !w.life) return;
@@ -212,7 +215,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
           (t.river ? 0.3 : 0) +
           (u.stock.clay > 0 ? 0.08 : 0),
       );
-      const funded = n.wealth > 30 && n.stability > 0.3;
+      const funded = n.wealth > 30 && n.stability > 0.3 && labor >= 8;
       u.sanitation = clamp(
         u.sanitation + (funded ? 0.002 : -0.003),
         0,
@@ -310,6 +313,39 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
       )
         ? 1
         : 0;
+      u.operation =
+        Math.min(1, labor / Math.max(8, c.homes * 2 + e * 3)) * (1 - damage);
+      u.neglect = clamp(
+        (u.neglect || 0) + (u.operation < 0.2 ? 0.008 : -0.012),
+      );
+      if ((u.neglect || 0) > 0.6) {
+        c.industry = Math.max(0, (c.industry || 0) - 0.015);
+        c.network = Math.max(0, (c.network || 0) - 0.01);
+        if (w.year % 20 === 0) {
+          c.homes = Math.max(1, c.homes - 1);
+          u.builtEra = Math.max(0, u.builtEra - 1);
+        }
+      }
+      if (
+        funded &&
+        u.operation > 0.35 &&
+        u.builtEra < Math.min(e, Math.floor(c.development)) &&
+        u.stock.timber >= 0.5 &&
+        (e < 7 || u.stock.metal >= 0.2)
+      ) {
+        u.stock.timber -= 0.5;
+        if (e >= 7) u.stock.metal -= 0.2;
+        n.wealth = Math.max(0, n.wealth - 2);
+        u.builtEra++;
+      }
+      u.lifecycle =
+        c.population < 1 || u.neglect > 0.85
+          ? "ruin"
+          : u.operation < 0.25 || u.neglect > 0.45
+            ? "declining"
+            : u.neglect > 0.1
+              ? "recovering"
+              : "active";
       const health = demographicYear(u, e, n.stability, war, plague);
       c.population = sum(u.cohorts);
       u.growth = c.population - before;
@@ -376,15 +412,20 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
         {
           key: "war",
           value: damage,
-          effect: damage < 1 ? agriculture * damage / (1-damage) : z.farms * (2 + Math.sqrt(n.tech) * .65) * ERAS[e].food * Math.min(1,labor/Math.max(5,z.farms*.6)) * (.6+u.water*.4),
+          effect:
+            damage < 1
+              ? (agriculture * damage) / (1 - damage)
+              : z.farms *
+                (2 + Math.sqrt(n.tech) * 0.65) *
+                ERAS[e].food *
+                Math.min(1, labor / Math.max(5, z.farms * 0.6)) *
+                (0.6 + u.water * 0.4),
           label: "재해·전쟁 피해 → 생산 손실",
         },
       ];
     }
     const transit = w
-      .living!.vehicles.filter(
-        (v) => v.nation === n.id && v.people,
-      )
+      .living!.vehicles.filter((v) => v.nation === n.id && v.people)
       .reduce((a, v) => a + sum(v.people!), 0);
     n.population = sum(n.demography.cohorts) + transit;
     n.demography.total = n.population;

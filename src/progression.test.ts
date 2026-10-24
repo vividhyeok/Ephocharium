@@ -69,6 +69,7 @@ it("research can decline during crisis and resume after recovery; directions ada
   n.stability = 1;
   n.food = 10000;
   n.wealth = 10000;
+  n.population = 1000; // Recovery also needs the workforce required to sustain this era.
   expect(researchRate(w, n)).toBeGreaterThan(0);
   const cells = w.tiles
       .map((t, i) => (t.owner === n.id ? i : -1))

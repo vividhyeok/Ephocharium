@@ -365,6 +365,7 @@ export function transportYear(w: World) {
       b = cities.get(r.to);
     if (!a?.urban || !b?.urban) continue;
     r.blocked =
+      (r.mode==='air' && ((a.urban.operation??1)<.15 || (b.urban.operation??1)<.15)) ||
       atWar(w, a.nation, b.nation) ||
       r.path.some(
         (i) => w.tiles[i].owner && atWar(w, a.nation, w.tiles[i].owner),
@@ -566,7 +567,7 @@ export function transportYear(w: World) {
       s.vehicles
         .filter((v) => v.nation === n.id && v.people)
         .reduce((s, v) => s + sum(v.people!), 0);
-    if (n.demography) n.demography.migration = s.migrants;
+    if (n.demography) {n.demography.migration = s.migrants;n.demography.total=n.population;n.demography.cohorts=[0,0,0];for(const c of home)for(let k=0;k<3;k++)n.demography.cohorts[k]+=c.urban!.cohorts[k];}
   }
 }
 function militaryTransport(w: World, cities: Settlement[]) {

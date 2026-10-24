@@ -315,8 +315,7 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
   });
   await expect(page.locator(".year")).toContainText("180");
   await page
-    .locator(".kingdom-list button")
-    .filter({ hasText: w.nations[0].name })
+    .getByRole("button", {name:w.nations[0].name,exact:true})
     .click();
   await expect(page.locator(".era-label")).toHaveText("정보 문명");
   await page.locator(".illustrated-nation details").evaluate(el=>(el as HTMLDetailsElement).open=true);
@@ -396,8 +395,7 @@ test("전선에서 군대를 확인하고 평화 능력으로 즉시 해산시�
   });
   await expect(page.locator(".year")).toContainText("12");
   await page
-    .locator(".kingdom-list button")
-    .filter({ hasText: w.nations[0].name })
+    .getByRole("button", {name:w.nations[0].name,exact:true})
     .click();
   await page.getByRole("button", { name: /전선 가까이 보기/ }).click();
   await page.locator(".nation-panel").evaluate((el) => {

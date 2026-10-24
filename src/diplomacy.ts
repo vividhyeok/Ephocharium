@@ -1,3 +1,4 @@
+import { prepareArchive, leaderTraits } from "./archives";
 import { advanceResearch } from "./progression";
 import { eraOf } from "./eras";
 import { record, neighbors, type World, type Relation } from "./engine";
@@ -80,6 +81,7 @@ export function treaty(
   actor?: number,
 ) {
   initializeDiplomacy(w);
+  prepareArchive(w);
   if (kind === "war") {
     if (r.war) return;
     if (r.allied)
@@ -90,6 +92,9 @@ export function treaty(
         "무력 충돌로 상호 방위 조약이 파기되었습니다.",
         actor,
       );
+    w.archive!.lastWarStart = w.year;
+    w.archive!.peaceSince = null;
+    for (const id of [r.a, r.b]) w.archive!.nations[id].wars++;
     r.pastWars = (r.pastWars || 0) + 1;
     r.grievance = Math.min(1, (r.grievance || 0) + 0.35);
     r.war = true;
@@ -101,6 +106,9 @@ export function treaty(
   if (kind === "peace") {
     if (!r.war) return;
     r.war = false;
+    w.archive!.lastWarEnd = w.year;
+    if (!w.relations.some((other) => other !== r && other.war))
+      w.archive!.peaceSince = w.year;
     r.score = Math.max(0.2, r.score);
     r.since = w.year;
     r.reason = reason;
@@ -115,6 +123,7 @@ export function treaty(
         "플레이어의 중재로 교전을 멈추고 동맹 협상을 시작했습니다.",
         actor,
       );
+    for (const id of [r.a, r.b]) w.archive!.nations[id].alliances++;
     r.allied = true;
     r.allianceSince = w.year;
     r.score = Math.max(0.65, r.score);
@@ -160,7 +169,10 @@ export function updateDiplomacy(w: World) {
     if (
       !r.war &&
       !r.allied &&
-      r.score >= 0.22 &&
+      r.score >=
+        0.22 -
+          (leaderTraits(w, a).diplomacy + leaderTraits(w, b).diplomacy - 1) *
+            0.025 &&
       w.year - r.since >= 40 &&
       (r.grievance || 0) < 0.2
     )
@@ -357,7 +369,9 @@ function regionalPolitics(w: World) {
       const target =
         0.35 +
         common.length * 0.35 -
-        expansion * 0.48 -
+        expansion * 0.48 +
+        (leaderTraits(w, a).diplomacy + leaderTraits(w, b).diplomacy - 1) *
+          0.035 -
         pressure * 3 -
         (r.grievance || 0) * 0.45 -
         (touch ? difference * 0.15 : 0) +
@@ -377,11 +391,19 @@ function regionalPolitics(w: World) {
         touch &&
         !r.allied &&
         w.year - r.since > 150 &&
-        r.score < -0.08 &&
+        r.score <
+          -0.08 -
+            (leaderTraits(w, a).peace + leaderTraits(w, b).peace - 1) * 0.025 -
+            (leaderTraits(w, a).caution + leaderTraits(w, b).caution - 1) *
+              0.012 &&
         Math.max(a.aggression, b.aggression) > 0.58 &&
         Math.min(a.stability, b.stability) > 0.4
       ) {
-        const actor = a.aggression > b.aggression ? a : b;
+        const actor =
+          a.aggression + leaderTraits(w, a).ambition * 0.08 >
+          b.aggression + leaderTraits(w, b).ambition * 0.08
+            ? a
+            : b;
         treaty(
           w,
           r,

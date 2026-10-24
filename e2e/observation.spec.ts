@@ -185,6 +185,7 @@ test("14개 시대의 픽셀 건축이 실제 렌더러와 게임 화면에 표�
   for (const c of w.life!.settlements) {
     c.development = 13;
     c.homes = 12;
+    if(c.urban)c.urban.builtEra=13; // Prepared built structures, not only a technological number.
   }
   for (const p of w.life!.polities) {
     p.metal = 200;
@@ -218,8 +219,7 @@ test("14개 시대의 픽셀 건축이 실제 렌더러와 게임 화면에 표�
   expect(unique).toBe(14);
   await page.screenshot({ path: "test-results/fourteen-civilizations.png" });
   await page
-    .locator(".kingdom-list button")
-    .filter({ hasText: w.nations[13].name })
+    .getByRole("button", {name:w.nations[13].name,exact:true})
     .click();
   await expect(page.locator(".era-label")).toHaveText("행성간 문명");
   await page.locator(".illustrated-nation details").evaluate(el=>(el as HTMLDetailsElement).open=true);

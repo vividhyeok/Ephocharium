@@ -361,7 +361,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     if (era !== polity.era) {
       record(
         w,
-        n.name + "이 " + ERAS[era].name + "에 진입했습니다",
+        n.name + "이 " + ERAS[era].name + (era<polity.era?" 수준으로 쇠퇴했습니다":"에 진입했습니다"),
         [n.id],
         n.capital,
       );
@@ -442,8 +442,8 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
       if (!w.living) c.population = n.population / cities.length;
       c.development = clamp(
         c.development +
-          (n.food > n.population ? 0.04 : 0) +
-          Math.min(0.05, n.wealth / 10000),
+          ((c.urban?.operation??1)>.3 && n.food > n.population ? 0.04 : -0.03) +
+          ((c.urban?.operation??1)>.3?Math.min(0.05, n.wealth / 10000):0),
         0,
         era + 1 + Math.log1p(Math.max(0, n.tech - 300)),
       );

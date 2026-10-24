@@ -96,6 +96,7 @@ export default function NationBrowser({
               {list.map((n) => (
                 <button
                   key={n.id}
+                  aria-label={n.name}
                   onClick={() => onSelect(n)}
                   title={`${n.name} · ${ERAS[eraOf(n)].name} · ${FAITHS[n.culture?.faith ?? -1]?.name || "미분류"}`}
                 >

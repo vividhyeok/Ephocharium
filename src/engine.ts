@@ -1,4 +1,11 @@
-import { frontierYear } from './frontier';
+import {
+  archiveYear,
+  prepareArchive,
+  validateArchive,
+  type Archive,
+  type LeaderTraits,
+} from "./archives";
+import { frontierYear } from "./frontier";
 import { validateLiving } from "./livingValidation";
 import { transportYear } from "./transport";
 import { ensureLiving, urbanYear, reconcileLiving } from "./living";
@@ -73,6 +80,7 @@ export interface Tile {
   road?: number;
 }
 export interface Nation {
+  leaderTraits?: LeaderTraits;
   id: number;
   culture?: Culture;
   demography?: Demography;
@@ -130,6 +138,8 @@ export interface Effect {
   life: number;
 }
 export interface World {
+  worldId?: string;
+  archive?: Archive;
   version: 1;
   living?: LivingState;
   developmentSpeed?: "relaxed" | "standard" | "fast";
@@ -480,9 +490,10 @@ export function step(w: World) {
         )
     ) {
       n.age = 20 + random(w) * 15;
-      n.aggression = 0.2 + random(w) * 0.7;
+      // National policy survives succession; personal traits are separate.
       n.leader = culturalName(n.culture!.id, w.seed + n.id + w.year, 1);
       n.culture!.reignSince = w.year;
+      prepareArchive(w);
       record(w, n.name + "에 새로운 지도자가 즉위했습니다", [n.id], n.capital);
     }
     const frontier = cells
@@ -548,6 +559,7 @@ export function step(w: World) {
   transportYear(w);
   updateCulture(w);
   captureAtlas(w);
+  archiveYear(w);
 }
 export const TOOLS: Record<
   string,
@@ -842,6 +854,7 @@ export function validate(data: unknown): data is World {
   const id = (v: unknown) =>
     Number.isInteger(v) && finite(v, 1, w.nations?.length || 0);
   return (
+    validateArchive(w) &&
     w.version === 1 &&
     Number.isInteger(w.width) &&
     w.width >= 16 &&
