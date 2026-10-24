@@ -56,6 +56,7 @@ const icons = {
   aid: Sparkles,
   war: Swords,
   peace: Handshake,
+  alliance: Handshake,
   revolt: Crown,
   protect: Shield,
   eye: Eye,

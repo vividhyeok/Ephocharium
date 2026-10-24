@@ -1,12 +1,15 @@
 import { generate, step, apply, validate, type World } from "./engine";
 import { refreshLife } from "./civilization";
+import { upgradeWorld } from "./cartography";
+import { initializeDiplomacy } from "./diplomacy";
 let world: World;
 let speed = 1;
 let paused = false;
 self.onmessage = ({ data }) => {
   if (data.type === "generate") world = generate(data.options);
   if (data.type === "load" && validate(data.world)) {
-    world = data.world;
+    world = upgradeWorld(data.world);
+    initializeDiplomacy(world);
     if (!world.life) refreshLife(world);
   }
   if (data.type === "speed") speed = data.speed;

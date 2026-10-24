@@ -1,3 +1,4 @@
+import { pixelPerson } from "./PixelPerson";
 import type { World } from "./engine";
 import { eraOf, type Citizen, type Settlement } from "./civilization";
 const coordinates = (w: World, tile: number) => ({
@@ -306,7 +307,22 @@ export function drawActors(
     if (!n?.alive) continue;
     const x = lerp(u.previousX, u.x) * 8,
       y = lerp(u.previousY, u.y) * 8 + 2;
-    person(ctx, u, x, y, n.color, eraOf(n), clock, paused);
+    if (zoom >= 3)
+      pixelPerson(
+        ctx,
+        x,
+        y,
+        n.color,
+        u.role,
+        eraOf(n),
+        !paused &&
+          (Math.hypot(u.x - u.previousX, u.y - u.previousY) > 0.02 ||
+            (u.work > 0 && !u.returning))
+          ? Math.floor(clock * 9 + u.id) % 2
+          : 0,
+        u.work > 0 && !u.returning,
+      );
+    else person(ctx, u, x, y, n.color, eraOf(n), clock, paused);
   }
   for (const a of s.armies) {
     const n = w.nations[a.nation - 1];
@@ -314,9 +330,26 @@ export function drawActors(
     const x = lerp(a.previousX, a.x) * 8,
       y = lerp(a.previousY, a.y) * 8,
       era = eraOf(n);
+    if (zoom >= 3) {
+      for (let i = 0; i < Math.min(4, Math.ceil(a.strength / 15)); i++)
+        pixelPerson(
+          ctx,
+          x + (i % 2) * 5 - 3,
+          y + Math.floor(i / 2) * 4,
+          n.color,
+          "soldier",
+          era,
+          !paused &&
+            (a.fighting ||
+              Math.hypot(a.x - a.previousX, a.y - a.previousY) > 0.02)
+            ? Math.floor(clock * 8 + i) % 2
+            : 0,
+          a.fighting,
+        );
+    }
     ctx.fillStyle = "#2b4f4855";
     ctx.fillRect(x - 5, y, 12, 3);
-    if (era >= 3) {
+    if (era >= 3 && zoom < 3) {
       ctx.fillStyle = n.color;
       ctx.fillRect(x - 4, y - 4, 9, 4);
       ctx.fillStyle = "#435a55";
@@ -324,7 +357,7 @@ export function drawActors(
       ctx.fillStyle = "#b7c3b1";
       ctx.fillRect(x - 1, y - 6, 5, 2);
       ctx.fillRect(x + 3, y - 5, 5, 1);
-    } else
+    } else if (zoom < 3)
       for (let i = 0; i < Math.min(6, Math.ceil(a.strength / 10)); i++) {
         const xx = x + ((i % 3) - 1) * 3,
           yy = y + Math.floor(i / 3) * 3;

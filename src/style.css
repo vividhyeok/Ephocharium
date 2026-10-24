@@ -2142,3 +2142,150 @@ input[type="checkbox"] {
   color: #e4be8f;
   margin-top: 4px;
 }
+.diplomacy-summary {
+  position: absolute;
+  top: 122px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 8;
+}
+.diplomacy-status {
+  position: relative;
+}
+.diplomacy-status > button {
+  padding: 8px 14px;
+  background: #173e43ef;
+  border: 1px solid #9cad8555;
+  border-radius: 8px;
+  color: #ead9a7;
+  font-size: 12px;
+}
+.diplomacy-status:first-child > button {
+  color: #ffb29a;
+}
+.diplomacy-preview {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  max-height: 340px;
+  overflow: auto;
+  background: #12353bf5;
+  border: 1px solid #71998c;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 12px 32px #102e4080;
+  color: #e6e6ce;
+  font-size: 12px;
+}
+.diplomacy-status:hover .diplomacy-preview,
+.diplomacy-status:focus-within .diplomacy-preview {
+  display: block;
+}
+.diplomacy-preview p {
+  border-bottom: 1px solid #78988540;
+  padding: 8px 0;
+}
+.diplomacy-preview small {
+  display: block;
+  color: #b1c5b7;
+  line-height: 1.6;
+  margin-top: 5px;
+}
+.diplomacy-view {
+  padding: 16px 0;
+  border-bottom: 1px solid #8aab8a40;
+  margin-bottom: 20px;
+}
+.diplomacy-filters {
+  display: flex;
+  gap: 6px;
+  margin: 14px 0;
+}
+.diplomacy-filters button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #214b4c;
+  color: #d4dbc0;
+  border: 1px solid #75958655;
+}
+.diplomacy-filters button[aria-pressed="true"] {
+  background: #8d8150;
+  color: white;
+}
+.treaty-grid {
+  display: grid;
+  gap: 8px;
+}
+.treaty-grid details {
+  border: 1px solid #75958655;
+  border-radius: 8px;
+  padding: 12px;
+  background: #14393d;
+}
+.treaty-grid summary {
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.treaty-grid summary span {
+  color: #e9bc7c;
+}
+.treaty-grid p,
+.diplomacy-timeline p {
+  font-size: 12px;
+  color: #b6c8b8;
+  line-height: 1.7;
+}
+.diplomacy-timeline {
+  list-style: none;
+  padding: 0;
+}
+.diplomacy-timeline > li {
+  display: flex;
+  gap: 18px;
+  border-left: 2px solid #8eab8055;
+  padding: 12px 0 12px 16px;
+}
+.diplomacy-timeline time {
+  color: #ddc384;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.diplomacy-timeline strong {
+  font-size: 12px;
+}
+.diplomacy-timeline small {
+  color: #9ab1a7;
+}
+@media (max-width: 850px) {
+  .diplomacy-summary {
+    top: 140px;
+    left: 20px;
+    transform: none;
+  }
+  .diplomacy-preview {
+    left: 0;
+    transform: none;
+    width: 260px;
+  }
+}
+.nation-treaties details {
+  font-size: 11px;
+  border-top: 1px solid #86aa7b33;
+  padding: 8px 0;
+}
+.nation-treaties summary {
+  cursor: pointer;
+  color: #dbc58b;
+}
+.nation-treaties p {
+  line-height: 1.6;
+  color: #a7beb0;
+}

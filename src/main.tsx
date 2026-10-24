@@ -1,3 +1,4 @@
+import DiplomacyView from "./DiplomacyView";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import MapView from "./MapView";
@@ -306,6 +307,13 @@ function App() {
         </nav>
       </header>
       <section className="viewport">
+        {world && (
+          <DiplomacyView
+            world={world}
+            compact
+            onOpen={() => setPanel("history")}
+          />
+        )}
         {world ? (
           <MapView
             world={world}
@@ -523,6 +531,21 @@ function App() {
               <Icon name="nation" size={27} />
             </div>
             <h2 style={{ color: n.color }}>{n.name}</h2>
+            <p className="muted">
+              {n.foundedYear !== undefined
+                ? `${n.foundedYear}년 건국`
+                : "건국 시점 미상"}{" "}
+              ·{" "}
+              {n.parentId
+                ? `${world!.nations[n.parentId - 1]?.name}에서 독립`
+                : "독립 국가"}
+            </p>
+            <button
+              className="kingdom-history"
+              onClick={() => setPanel("history")}
+            >
+              ⚔ 전쟁 · ⚑ 동맹과 외교 연표 열람
+            </button>
             <p>
               {n.leader} · {Math.floor(n.age)}세 ·{" "}
               {n.aggression > 0.6
@@ -627,6 +650,37 @@ function App() {
                 ? "전쟁 중"
                 : "평화로운 시기"}{" "}
               {n.protected ? "· 신의 보호" : ""}
+            </p>
+            <div className="nation-treaties">
+              {world?.relations
+                .filter(
+                  (r) => (r.war || r.allied) && (r.a === n.id || r.b === n.id),
+                )
+                .map((r) => (
+                  <details key={`${r.a}-${r.b}`}>
+                    <summary>
+                      {r.war ? "⚔ 전쟁 중" : "⚑ 동맹 중"} ·{" "}
+                      {world.nations[(r.a === n.id ? r.b : r.a) - 1]?.name}
+                    </summary>
+                    <p>
+                      {r.war ? r.since : r.allianceSince}년부터 ·{" "}
+                      {r.reason || "이전 저장의 상세 원인 기록이 없습니다."}
+                    </p>
+                  </details>
+                ))}
+            </div>
+            <p className="muted">
+              군대 장비 ·{" "}
+              {
+                [
+                  "몽둥이 · 창",
+                  "창 · 방패",
+                  "검 · 방패",
+                  "머스킷",
+                  "소총 · 헬멧",
+                  "현대 소총 · 헬멧",
+                ][eraOf(n)]
+              }
             </p>
             <div className="city-activity">
               <span>
@@ -942,6 +996,8 @@ function App() {
                       <option value={80}>작게 · 80</option>
                       <option value={112}>보통 · 112</option>
                       <option value={160}>크게 · 160</option>
+                      <option value={192}>대륙 · 192</option>
+                      <option value={256}>광대한 세계 · 256</option>
                     </select>
                   </label>
                   <label>
@@ -1003,6 +1059,7 @@ function App() {
                 <p className="muted">
                   실제 세계에서 일어난 중요한 변화만 기록합니다.
                 </p>
+                {world && <DiplomacyView world={world} />}
                 <div className="history-list">
                   {world?.history
                     .slice()

@@ -104,7 +104,7 @@ export default function MapView(props: Props) {
         z = c.zoom;
       const x = e.clientX - r.left,
         y = e.clientY - r.top;
-      c.zoom = Math.max(0.4, Math.min(12, z * Math.exp(-e.deltaY * 0.001)));
+      c.zoom = Math.max(0.4, Math.min(18, z * Math.exp(-e.deltaY * 0.001)));
       c.x = x - ((x - c.x) * c.zoom) / z;
       c.y = y - ((y - c.y) * c.zoom) / z;
     };
@@ -249,12 +249,12 @@ export default function MapView(props: Props) {
           const n = w.nations[cell.owner - 1];
           if (!n) return;
           if (political) {
-            ctx.globalAlpha = 0.13;
+            ctx.globalAlpha = 0.27;
             ctx.fillStyle = n.color;
             ctx.fillRect(x, y, 8, 8);
-            ctx.globalAlpha = 0.85;
+            ctx.globalAlpha = 1;
             ctx.strokeStyle = n.color;
-            ctx.lineWidth = 0.65;
+            ctx.lineWidth = 1.15;
             ctx.beginPath();
             if (i % w.width === 0 || w.tiles[i - 1]?.owner !== cell.owner) {
               ctx.moveTo(x, y);
@@ -275,6 +275,11 @@ export default function MapView(props: Props) {
               ctx.moveTo(x, y + 8);
               ctx.lineTo(x + 8, y + 8);
             }
+            ctx.strokeStyle = "#163a3e";
+            ctx.lineWidth = 2.1;
+            ctx.stroke();
+            ctx.strokeStyle = n.color;
+            ctx.lineWidth = 1.05;
             ctx.stroke();
             ctx.globalAlpha = 1;
           }
@@ -347,7 +352,13 @@ export default function MapView(props: Props) {
         const label =
           n.name.replace(" 왕국", "") +
           " · " +
-          ERAS[eraOf(n)].name.replace(" 시대", "");
+          ERAS[eraOf(n)].name.replace(" 시대", "") +
+          (w.relations.some((r) => r.war && (r.a === n.id || r.b === n.id))
+            ? " ⚔"
+            : "") +
+          (w.relations.some((r) => r.allied && (r.a === n.id || r.b === n.id))
+            ? " ⚑"
+            : "");
         const tw = ctx.measureText(label).width;
         if (x + tw < 0 || x - tw > width || y < 0 || y > height) continue;
         if (
@@ -409,7 +420,7 @@ export default function MapView(props: Props) {
       c.zoom = Math.max(
         0.4,
         Math.min(
-          12,
+          18,
           props.command.action === "detail"
             ? Math.max(4, z)
             : z * (props.command.action === "in" ? 1.3 : 1 / 1.3),

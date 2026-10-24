@@ -1,3 +1,11 @@
+import { nationName, nationColor } from "./identity";
+import { coldPatch } from "./cartography";
+import {
+  treaty,
+  updateDiplomacy,
+  validateDiplomacy,
+  type DiplomaticEvent,
+} from "./diplomacy";
 import {
   prepareLife,
   refreshLife,
@@ -20,6 +28,9 @@ export interface Tile {
 }
 export interface Nation {
   id: number;
+  foundedYear?: number;
+  parentId?: number;
+  originalName?: string;
   name: string;
   color: string;
   capital: number;
@@ -43,6 +54,10 @@ export interface Relation {
   score: number;
   war: boolean;
   since: number;
+  allied?: boolean;
+  allianceSince?: number;
+  aggressor?: number;
+  reason?: string;
 }
 export interface History {
   year: number;
@@ -57,6 +72,10 @@ export interface Effect {
 }
 export interface World {
   version: 1;
+  identityRevision?: number;
+  cartographyRevision?: number;
+  diplomacyLog?: DiplomaticEvent[];
+  diplomacySequence?: number;
   seed: number;
   rng: number;
   width: number;
@@ -89,16 +108,6 @@ export const COLORS = [
   "#83acd7",
   "#d5ce8c",
 ];
-const NAMES = [
-  "아르덴",
-  "루미아",
-  "벨로아",
-  "에린",
-  "세레니아",
-  "노르딘",
-  "아스텔",
-  "미르",
-];
 export const random = (w: World) => {
   w.rng |= 0;
   w.rng = (w.rng + 0x6d2b79f5) | 0;
@@ -124,16 +133,20 @@ export function record(
   w.history.push({ year: w.year, text, nations, tile });
   if (w.history.length > 1200) w.history.shift();
 }
-export function found(w: World, tile: number, population = 24) {
+export function found(
+  w: World,
+  tile: number,
+  population = 24,
+  parentId?: number,
+) {
   if (!land(w.tiles[tile]) || w.tiles[tile].owner) return;
   const id = w.nations.length + 1;
   const n: Nation = {
     id,
-    name:
-      NAMES[(id - 1) % 8] +
-      (id > 8 ? " " + Math.ceil(id / 8) + "세" : "") +
-      " 왕국",
-    color: COLORS[(id - 1) % 8],
+    name: nationName(id),
+    color: nationColor(id),
+    foundedYear: w.year,
+    parentId,
     capital: tile,
     population,
     food: population * 3,
@@ -160,10 +173,14 @@ export function generate(o: Options): World {
   o = {
     ...o,
     seed: Number.isFinite(o.seed) ? o.seed | 0 : 0,
-    size: clamp(Math.round(o.size) || 112, 16, 192),
+    size: clamp(Math.round(o.size) || 112, 16, 256),
   };
   const w: World = {
     version: 1,
+    identityRevision: 2,
+    cartographyRevision: 2,
+    diplomacyLog: [],
+    diplomacySequence: 0,
     seed: o.seed,
     rng: o.seed,
     width: o.size,
@@ -197,16 +214,18 @@ export function generate(o: Options): World {
       h +=
         Math.sin(nx * 31 + Math.sin(ny * 23) + phase) * 0.065 +
         Math.cos(ny * 39 + nx * 15) * 0.045;
+      h -= Math.max(0, 0.14 - Math.min(nx, 1 - nx, ny, 1 - ny)) * 13;
       const coast = (o.sea - 0.45) * 0.7;
       const r = random(w);
       let t: Terrain =
-        h < coast
+        x < 2 || y < 2 || x >= w.width - 2 || y >= w.height - 2 || h < coast
           ? 0
           : h < coast + 0.075
             ? 1
             : r < o.mountains && h > 0.25
               ? 4
-              : ny < 0.13
+              : coldPatch(w.seed, x, y, w.width, w.height) ||
+                  (ny < 0.27 && h > 0.65 && r < 0.4)
                 ? 5
                 : r < o.forest
                   ? 3
@@ -315,7 +334,11 @@ export function step(w: World) {
     if (!cells.length || n.population < 2) {
       n.alive = false;
       for (const r of w.relations)
-        if (r.a === n.id || r.b === n.id) r.war = false;
+        if (r.a === n.id || r.b === n.id) {
+          if (r.war)
+            treaty(w, r, "peace", "교전국의 멸망으로 전쟁이 종료되었습니다.");
+          if (r.allied) treaty(w, r, "break", "동맹국이 멸망했습니다.");
+        }
       for (const i of cells) w.tiles[i].owner = 0;
       record(w, n.name + " 멸망", [n.id]);
       continue;
@@ -388,13 +411,21 @@ export function step(w: World) {
           );
           if (
             !r.war &&
+            !r.allied &&
             r.score < -0.25 &&
             n.aggression > 0.55 &&
             w.year - r.since > 18 &&
             n.stability > 0.4
           ) {
-            r.war = true;
-            r.since = w.year;
+            treaty(
+              w,
+              r,
+              "war",
+              n.food < n.population
+                ? "국경의 식량 부족과 영토 경쟁으로 관계가 악화되었습니다."
+                : "국경 확장 경쟁과 지도자의 팽창 정책으로 개전했습니다.",
+              n.id,
+            );
             record(
               w,
               n.name + "과 " + other.name + " 사이에 전쟁 발발",
@@ -410,9 +441,12 @@ export function step(w: World) {
               w.year - r.since > 15 &&
               (n.stability < 0.45 || other.stability < 0.45 || random(w) < 0.04)
             ) {
-              r.war = false;
-              r.score = 0.2;
-              r.since = w.year;
+              treaty(
+                w,
+                r,
+                "peace",
+                "장기전과 국내 불안으로 휴전에 합의했습니다.",
+              );
               record(
                 w,
                 n.name + "과 " + other.name + " 평화협정",
@@ -424,13 +458,6 @@ export function step(w: World) {
             n.food += 1;
             n.wealth += 0.6;
             n.tech += other.tech * 0.0002;
-            if (r.score > 0.6 && r.score < 0.62)
-              record(
-                w,
-                n.name + "과 " + other.name + " 교역 동맹",
-                [n.id, other.id],
-                i,
-              );
           }
         }
       }
@@ -440,7 +467,7 @@ export function step(w: World) {
         Math.abs(a - n.capital) > Math.abs(b - n.capital) ? a : b,
       );
       w.tiles[far].owner = 0;
-      const rebel = found(w, far, n.population * 0.18);
+      const rebel = found(w, far, n.population * 0.18, n.id);
       if (rebel) {
         n.population *= 0.82;
         n.stability += 0.25;
@@ -469,6 +496,7 @@ export function step(w: World) {
       if (n.samples.length > 150) n.samples.shift();
     }
   }
+  updateDiplomacy(w);
   updateLife(w, holdings);
 }
 export const TOOLS: Record<
@@ -577,6 +605,12 @@ export const TOOLS: Record<
     description: "가장 가까운 국가와 전쟁을 시작합니다",
     category: "문명",
   },
+  alliance: {
+    icon: "⚑",
+    label: "동맹",
+    description: "가까운 국가와 상호 방위·교류 조약을 체결합니다",
+    category: "문명",
+  },
   peace: {
     icon: "☮",
     label: "평화",
@@ -620,23 +654,46 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
       for (const r of w.relations.filter(
         (r) => r.a === target.id || r.b === target.id,
       )) {
-        r.war = false;
+        treaty(w, r, "peace", "관찰자의 평화 중재로 휴전했습니다.");
         r.score = 0.4;
-        r.since = w.year;
       }
-    if (tool === "war") {
+    if (tool === "war" || tool === "alliance") {
       const other = w.nations
         .filter((n) => n.alive && n.id !== target.id)
         .sort(
-          (a, b) => Math.abs(a.capital - tile) - Math.abs(b.capital - tile),
+          (a, b) =>
+            Math.hypot(
+              (a.capital % w.width) - (tile % w.width),
+              Math.floor(a.capital / w.width) - Math.floor(tile / w.width),
+            ) -
+            Math.hypot(
+              (b.capital % w.width) - (tile % w.width),
+              Math.floor(b.capital / w.width) - Math.floor(tile / w.width),
+            ),
         )[0];
       if (other) {
         const r = relation(w, target.id, other.id);
-        r.war = true;
-        r.since = w.year;
+        if (tool === "alliance")
+          treaty(
+            w,
+            r,
+            "alliance",
+            "관찰자의 중재로 상호 방위·자원 및 기술 교류 조약을 체결했습니다.",
+          );
+        else
+          treaty(
+            w,
+            r,
+            "war",
+            "관찰자의 개입으로 전쟁을 선포했습니다.",
+            target.id,
+          );
         record(
           w,
-          target.name + "과 " + other.name + " 전쟁 · 신의 개입",
+          target.name +
+            "과 " +
+            other.name +
+            (tool === "alliance" ? " 동맹 · 신의 개입" : " 전쟁 · 신의 개입"),
           [target.id, other.id],
           tile,
         );
@@ -644,7 +701,7 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
     }
     if (tool === "revolt") {
       w.tiles[tile].owner = 0;
-      const n = found(w, tile, target.population * 0.15);
+      const n = found(w, tile, target.population * 0.15, target.id);
       if (n) {
         target.population *= 0.85;
         record(w, n.name + " 독립 · 신의 개입", [target.id, n.id], tile);
@@ -721,10 +778,10 @@ export function validate(data: unknown): data is World {
     w.version === 1 &&
     Number.isInteger(w.width) &&
     w.width >= 16 &&
-    w.width <= 192 &&
+    w.width <= 320 &&
     Number.isInteger(w.height) &&
     w.height > 0 &&
-    w.height <= 192 &&
+    w.height <= 256 &&
     Array.isArray(w.tiles) &&
     w.tiles.length === w.width * w.height &&
     w.tiles.every(
@@ -748,6 +805,8 @@ export function validate(data: unknown): data is World {
       (n, i) =>
         n &&
         n.id === i + 1 &&
+        (n.foundedYear === undefined || finite(n.foundedYear)) &&
+        (n.parentId === undefined || (id(n.parentId) && n.parentId !== n.id)) &&
         typeof n.name === "string" &&
         n.name.length <= 100 &&
         typeof n.color === "string" &&
@@ -787,7 +846,15 @@ export function validate(data: unknown): data is World {
         r.a !== r.b &&
         finite(r.score, -1, 1) &&
         typeof r.war === "boolean" &&
-        finite(r.since),
+        finite(r.since) &&
+        (r.allied === undefined || typeof r.allied === "boolean") &&
+        !(r.war && r.allied) &&
+        (r.allianceSince === undefined || finite(r.allianceSince)) &&
+        (r.aggressor === undefined ||
+          r.aggressor === r.a ||
+          r.aggressor === r.b) &&
+        (r.reason === undefined ||
+          (typeof r.reason === "string" && r.reason.length < 2000)),
     ) &&
     Array.isArray(w.history) &&
     w.history.length <= 1200 &&
@@ -823,6 +890,7 @@ export function validate(data: unknown): data is World {
     Number.isInteger(w.seed) &&
     finite(w.seed, -2147483648, 2147483647) &&
     ["empty", "dawn", "four", "islands", "war", "observe"].includes(w.preset) &&
+    validateDiplomacy(w) &&
     validateLife(w)
   );
 }

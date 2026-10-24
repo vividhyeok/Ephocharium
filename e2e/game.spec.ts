@@ -1,7 +1,59 @@
 import { test, expect } from "@playwright/test";
 import { generate, step, found, apply, type World } from "../src/engine";
 import { refreshLife } from "../src/civilization";
+import { getRelation, treaty } from "../src/diplomacy";
 import { readFile } from "node:fs/promises";
+test("외교 상태를 가리키거나 키보드로 초점을 옮겨 원인을 읽고 연표를 열 수 있다", async ({
+  page,
+}) => {
+  const w = generate({
+    seed: 42,
+    size: 192,
+    preset: "four",
+    sea: 0.4,
+    forest: 0.35,
+    mountains: 0.05,
+  });
+  treaty(
+    w,
+    getRelation(w, 1, 2),
+    "alliance",
+    "해안 교역로의 공동 보호를 위해 조약을 체결했습니다.",
+  );
+  treaty(
+    w,
+    getRelation(w, 3, 4),
+    "war",
+    "국경 광산의 소유권 분쟁으로 전쟁이 시작되었습니다.",
+    3,
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
+  await page.getByRole("button", { name: "일시정지", exact: true }).click();
+  await page
+    .locator("input[type=file]")
+    .setInputFiles({
+      name: "diplomacy.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(w)),
+    });
+  const alliance = page.locator(".diplomacy-status").nth(1).getByRole("button");
+  await alliance.focus();
+  await expect(page.locator(".diplomacy-preview").nth(1)).toBeVisible();
+  await expect(page.locator(".diplomacy-preview").nth(1)).toContainText(
+    "해안 교역로",
+  );
+  await page.locator(".diplomacy-status").first().hover();
+  await expect(page.locator(".diplomacy-preview").first()).toContainText(
+    "국경 광산",
+  );
+  await alliance.click();
+  await expect(page.locator(".diplomacy-timeline")).toContainText("국경 광산");
+  await expect(page.locator(".diplomacy-timeline")).toContainText(
+    "해안 교역로",
+  );
+  await page.screenshot({ path: "test-results/diplomacy-timeline.png" });
+});
 test("세계 → 시간 → 저장 → 내보내기 → 복원 → 관찰 모드", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -186,7 +238,10 @@ test("성장한 세계에서 지도 선택과 신의 개입이 실제 인구를 
     w.nations[0].name,
   );
   const population = Math.round(w.nations[0].population);
+  await page.getByLabel("국가 정보 닫기").click();
   await page.getByRole("button", { name: "인구 지원", exact: true }).click();
+  await page.mouse.click(x, y);
+  await page.getByRole("button", { name: "관찰", exact: true }).click();
   await page.mouse.click(x, y);
   await expect(page.locator(".nation-grid")).toContainText(
     (population + 100).toLocaleString() + "명",
@@ -334,13 +389,11 @@ test("전선에서 군대를 확인하고 평화 능력으로 즉시 해산시�
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
   await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "battle.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(w)),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "battle.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(w)),
+  });
   await expect(page.locator(".year")).toContainText("12");
   await page
     .locator(".kingdom-list button")
