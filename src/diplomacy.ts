@@ -199,6 +199,9 @@ export function updateDiplomacy(w: World) {
       if (r.war) treaty(w, r, "peace", "교전국의 멸망으로 전쟁이 끝났습니다.");
       if (r.allied)
         treaty(w, r, "break", "동맹국의 멸망으로 조약이 종료되었습니다.");
+      if (r.subject)
+        treaty(w, r, "independence", "본국 또는 종속국의 멸망으로 종속 관계가 종료되었습니다.");
+      r.expedition = undefined;
       continue;
     }
     if (progressImperialRelations(w, r, a, b)) continue;
