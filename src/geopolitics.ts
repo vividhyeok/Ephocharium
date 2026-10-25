@@ -154,7 +154,7 @@ export function regionalPolitics(w: World) {
       wars.set(r.b, (wars.get(r.b) || 0) + 1);
     }
   }
-  const cap = (id: number) => Math.min(4, 2 + Math.floor(eraOf(w.nations[id - 1]) / 5));
+  const cap = (id: number) => Math.min(3, 2 + Math.floor(eraOf(w.nations[id - 1]) / 5));
   // Old saves with hundreds of treaty edges gradually unwind without a single huge event spike.
   let dissolved = 0;
   for (const r of w.relations.filter((r) => r.allied).sort((x, y) => x.score - y.score)) {
@@ -197,7 +197,7 @@ export function regionalPolitics(w: World) {
       const imperial = eraOf(dominant) >= eraOf(weaker) + 2 &&
         imbalance > 1.8 && dominant.aggression > 0.43;
       const rivalry = touch ? Math.min(0.35, (imbalance - 1) * 0.13) + shortage * 0.26 : 0;
-      const target = 0.17 + common.length * 0.27 - expansion * 0.43 -
+      const target = 0.17 + Math.min(0.3, common.length * 0.15) - expansion * 0.43 -
         rivalry - (r.grievance || 0) * 0.5 - (touch ? techGap * 0.025 : 0) +
         (r.allied ? 0.09 : 0);
       r.score = Math.max(-1, Math.min(1, r.score + (target - r.score) * 0.13));
@@ -220,7 +220,7 @@ export function regionalPolitics(w: World) {
       const timing = (Math.floor(w.year / 8) + a.id * 17 + b.id * 23 + w.seed) % 4;
       if (touch && declared < 4 && timing === 0 && strained &&
           (wars.get(a.id) || 0) < 2 && (wars.get(b.id) || 0) < 2 &&
-          Math.min(a.stability, b.stability) > 0.34 &&
+          Math.min(a.stability, b.stability) > 0.3 &&
           (desperate.aggression > 0.44 || dominant.aggression > 0.54)) {
         const actor = hunger(desperate) > 0.28 ? desperate : dominant;
         treaty(w, r, "war",

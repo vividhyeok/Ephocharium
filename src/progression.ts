@@ -132,13 +132,29 @@ export function researchRate(w: World, n: Nation) {
   const exchange = w.relations.filter(
     (r) => r.allied && (r.a === n.id || r.b === n.id),
   ).length;
+  const cities =
+    w.life?.settlements.filter((c) => c.nation === n.id && c.population > 0) ||
+    [];
+  const education =
+    cities.reduce((s, c) => s + (c.urban?.education || 0) * c.population, 0) /
+    Math.max(
+      1,
+      cities.reduce((s, c) => s + c.population, 0),
+    );
+  const tradeVolume =
+    w.living?.routes
+      .filter((r) => cities.some((c) => c.id === r.from || c.id === r.to))
+      .reduce((s, r) => s + r.delivered, 0) || 0;
+  const institutions =
+    1 + education * 2 + Math.min(0.4, Math.log1p(tradeVolume) * 0.03);
   return (
     (((w.developmentSpeed === "relaxed"
       ? 0.55
       : w.developmentSpeed === "fast"
         ? 1.8
         : 1) *
-      0.032 *
+      0.045 *
+      institutions *
       (0.25 + economy * 0.3 + population * 0.25 + resources * 0.2) *
       (0.5 + n.stability * 0.5) *
       (n.food > n.population * 0.25 ? 1 : 0.25) *

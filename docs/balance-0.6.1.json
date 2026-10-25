@@ -1,0 +1,35 @@
+[
+  {
+    "seed": 42,
+    "year": 2000,
+    "valid": true,
+    "population": 64499,
+    "maxTech": 67.40859418991309,
+    "wars": 79,
+    "alliances": 0,
+    "maxAllies": 0,
+    "foodPerPerson": 0.8024279624465921
+  },
+  {
+    "seed": 91,
+    "year": 2000,
+    "valid": true,
+    "population": 77443,
+    "maxTech": 104.99791352233234,
+    "wars": 25,
+    "alliances": 0,
+    "maxAllies": 0,
+    "foodPerPerson": 1.278666549512638
+  },
+  {
+    "seed": 241026,
+    "year": 2000,
+    "valid": true,
+    "population": 73850,
+    "maxTech": 73.86629538316427,
+    "wars": 74,
+    "alliances": 0,
+    "maxAllies": 0,
+    "foodPerPerson": 0.9839013161148549
+  }
+]

@@ -97,7 +97,7 @@ export function manufacturing(
     const oil = Math.min(stock.oil, fuel);
     stock.oil -= oil;
     stock.coal = Math.max(0, stock.coal - (fuel - oil));
-    energy = fuel * 5 + (era >= 12 ? efficiency * 0.8 : 0);
+    energy = fuel * 5 + efficiency * (0.12 + (era - 7) * 0.1);
   }
   return { metal, energy, efficiency };
 }

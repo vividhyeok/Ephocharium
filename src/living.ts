@@ -199,7 +199,8 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
     n.demography = emptyDemography();
     let weightedLife = 0,
       weightedFertility = 0,
-      weightedAdult = 0;
+      weightedAdult = 0,
+      generatedEnergy = 0;
     for (const c of cities) {
       const u = c.urban!,
         z = context.get(c.id);
@@ -250,7 +251,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
         (1 - damage * 0.5);
       const agriculture =
         z.farms *
-        (2 + Math.sqrt(n.tech) * 0.65) *
+        (4 + Math.sqrt(n.tech) * 1.6) *
         ERAS[e].food *
         Math.min(1, labor / Math.max(5, z.farms * 0.6)) *
         (0.6 + u.water * 0.4) *
@@ -297,7 +298,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
       const made = manufacturing(u.stock, e, labor, u.logistics, n.wealth);
       u.produced += made.metal;
       const p = w.life!.polities.find((p) => p.nation === n.id)!;
-      p.energy = Math.max(0, (p.energy || 0) * 0.99 + made.energy * 0.03);
+      generatedEnergy += made.energy;
       u.roles = [
         ...(c.tile === n.capital ? ["capital" as const] : []),
         ...(z.farms > 10 ? ["farm" as const] : []),
@@ -416,7 +417,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
             damage < 1
               ? (agriculture * damage) / (1 - damage)
               : z.farms *
-                (2 + Math.sqrt(n.tech) * 0.65) *
+                (4 + Math.sqrt(n.tech) * 1.6) *
                 ERAS[e].food *
                 Math.min(1, labor / Math.max(5, z.farms * 0.6)) *
                 (0.6 + u.water * 0.4),
@@ -424,6 +425,11 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
         },
       ];
     }
+    const polity = w.life!.polities.find((p) => p.nation === n.id)!;
+    polity.energy = Math.max(
+      0,
+      (polity.energy || 0) * 0.97 + generatedEnergy * 0.05,
+    );
     const transit = w
       .living!.vehicles.filter((v) => v.nation === n.id && v.people)
       .reduce((a, v) => a + sum(v.people!), 0);
