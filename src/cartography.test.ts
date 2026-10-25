@@ -81,8 +81,10 @@ it("treaties have dated causes and real alliance exchange; interventions select 
   treaty(w, r, "alliance", "교역 협정");
   expect(r.allied).toBe(true);
   const food = w.nations[0].food;
+  const wealth = w.nations[0].wealth;
   updateDiplomacy(w);
-  expect(w.nations[0].food).toBeGreaterThan(food);
+  expect(w.nations[0].food).toBe(food); // A defense pact must not generate grain.
+  expect(w.nations[0].wealth).toBeGreaterThan(wealth);
   treaty(w, r, "war", "영토 분쟁", 1);
   expect(r.allied).toBe(false);
   expect(r.war).toBe(true);
