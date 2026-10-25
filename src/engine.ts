@@ -123,6 +123,12 @@ export interface Relation {
   pastWars?: number;
   grievance?: number;
   pactYears?: number;
+  subject?: number;
+  subjectSince?: number;
+  truceUntil?: number;
+  lastRaidYear?: number;
+  warStartTerritory?: number;
+  expedition?: { invader: number; arrives: number; strength: number };
 }
 export interface History {
   id?: number;
@@ -934,7 +940,15 @@ export function validate(data: unknown): data is World {
           r.aggressor === r.a ||
           r.aggressor === r.b) &&
         (r.reason === undefined ||
-          (typeof r.reason === "string" && r.reason.length < 2000)),
+          (typeof r.reason === "string" && r.reason.length < 2000)) &&
+        (r.subject === undefined || ((r.subject === r.a || r.subject === r.b) && !r.war && !r.allied)) &&
+        (r.subjectSince === undefined || finite(r.subjectSince)) &&
+        (r.truceUntil === undefined || finite(r.truceUntil)) &&
+        (r.lastRaidYear === undefined || finite(r.lastRaidYear)) &&
+        (r.warStartTerritory === undefined || finite(r.warStartTerritory)) &&
+        (r.expedition === undefined ||
+          ((r.expedition.invader === r.a || r.expedition.invader === r.b) &&
+           finite(r.expedition.arrives) && finite(r.expedition.strength))),
     ) &&
     Array.isArray(w.history) &&
     w.history.length <= 1200 &&
