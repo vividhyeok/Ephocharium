@@ -123,9 +123,19 @@ export default function NationPanel({
           문명 Lv.{e + 1} / 14 · {ERAS[e].name}
         </b>
         <small>
+          다음 시대: {e >= ERAS.length - 1 ? "최종 단계" :
+            developmentGate(w, n) || "연구 진행 중"}
+        </small>
+        <small>
           생존 국가 중 기술{" "}
           {w.nations.filter((x) => x.alive && x.tech > n.tech).length + 1}위
         </small>
+        {w.relations.filter((r) => r.subject && (r.a === n.id || r.b === n.id))
+          .map((r) => <small key={"subject-" + r.a + "-" + r.b}>
+            {r.subject === n.id ? "종속국 · 본국: " +
+              w.nations[(r.a === n.id ? r.b : r.a) - 1].name :
+              "종속 관계 · 대상국: " + w.nations[r.subject! - 1].name}
+          </small>)}
         {(["allied", "war"] as const).map((kind) => (
           <div key={kind}>
             <strong>{kind === "allied" ? "동맹국" : "적대국"}</strong>
