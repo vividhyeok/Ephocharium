@@ -3,6 +3,7 @@ import { generate, validate } from "./engine";
 import { getRelation, treaty, updateDiplomacy } from "./diplomacy";
 import { progressImperialRelations, raidForResources, regionalPolitics } from "./geopolitics";
 import { effectiveWorkforce } from "./progression";
+import { politicalColors } from "./politicalColors";
 
 const make = () => generate({
   seed: 42, size: 48, preset: "four", sea: 0.4, forest: 0.35, mountains: 0.05,
@@ -34,6 +35,7 @@ describe("resource-driven geopolitical simulation", () => {
     treaty(w, r, "subjugation", "전쟁 이후 종속 협정", a.id);
     expect(r.subject).toBe(b.id);
     expect(r.war).toBe(false);
+    expect(politicalColors(w).get(a.id)).toBe(politicalColors(w).get(b.id));
     expect(validate(w)).toBe(true);
     b.population = 4000; b.tech = 200; b.stability = 0.95;
     a.population = 200; a.tech = 10;
