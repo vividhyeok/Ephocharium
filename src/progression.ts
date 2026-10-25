@@ -78,6 +78,17 @@ export function updateDirection(w: World, n: Nation, cells: number[]) {
   for (const k of Object.keys(t) as Direction[])
     t[k] += (target[k] / sum - t[k]) * 0.008;
 }
+/** Education, specialists and international exchange support capable small nations. */
+export function effectiveWorkforce(w: World, n: Nation) {
+  const cities = w.life?.settlements.filter((c) => c.nation === n.id && c.urban) || [];
+  const residents = cities.reduce((sum, c) => sum + c.population, 0);
+  const education = cities.reduce((sum, c) =>
+    sum + c.population * (c.urban?.education || 0), 0) / Math.max(1, residents);
+  const imported = cities.reduce((sum, c) => sum + (c.urban?.imported || 0), 0);
+  const allies = w.relations.filter((r) => r.allied && (r.a === n.id || r.b === n.id)).length;
+  return n.population * (1 + Math.min(0.7, education * 0.75 + Math.log1p(imported) * 0.09)) +
+    Math.min(48, allies * 12);
+}
 export function developmentGate(w: World, n: Nation) {
   const e = eraOf(n),
     next = ERAS[e + 1];
@@ -85,8 +96,8 @@ export function developmentGate(w: World, n: Nation) {
   const population = [
     0, 20, 40, 70, 110, 160, 220, 300, 420, 600, 850, 1200, 1700, 2200,
   ][e + 1];
-  if (n.population < population)
-    return `정착 인구 ${population.toLocaleString()}명 필요`;
+  if (effectiveWorkforce(w, n) < population)
+    return `인구·교육·교역 기반 부족 (${Math.floor(effectiveWorkforce(w, n))}/${population})`;
   if (n.stability < 0.38) return "안정성 회복 필요";
   if (n.wealth < 20 * (e + 1)) return "연구를 지원할 재산 필요";
   const p = w.life?.polities.find((p) => p.nation === n.id);
@@ -100,10 +111,9 @@ export function researchRate(w: World, n: Nation) {
   const minimumStaff = [
     0, 10, 20, 35, 55, 80, 110, 150, 210, 300, 425, 600, 850, 1100,
   ][e];
-  if (n.population < minimumStaff)
-    return (
-      -Math.max(0.001, n.tech * 0.0008) * (1 - n.population / minimumStaff)
-    );
+  const workforce = effectiveWorkforce(w, n);
+  if (workforce < minimumStaff)
+    return -Math.max(0.001, n.tech * 0.0008) * (1 - workforce / minimumStaff);
   if (n.stability < 0.24 || n.food < n.population * 0.1)
     return -Math.min(0.035, n.tech * 0.00018) * (war ? 1.5 : 1);
   if (
