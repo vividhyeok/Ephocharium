@@ -12,32 +12,32 @@ export default function DiplomacyView({
   compact?: boolean;
   onOpen?: () => void;
 }) {
-  const [filter, setFilter] = useState<"all" | "war" | "alliance">("all");
-  const active = world.relations.filter((r) => r.war || r.allied);
+  const [filter, setFilter] = useState<"all" | "war" | "alliance" | "colony">("all");
+  const active = world.relations.filter((r) => r.war || r.allied || r.subject);
   const name = (id: number) => world.nations[id - 1]?.name || "사라진 국가";
   if (compact)
     return (
       <div className="diplomacy-summary" aria-label="외교 현황">
-        {(["war", "alliance"] as const).map((kind) => {
+        {(["war", "alliance", "subject"] as const).map((kind) => {
           const list = active.filter((r) =>
-            kind === "war" ? r.war : r.allied,
+            kind === "war" ? r.war : kind === "alliance" ? r.allied : !!r.subject,
           );
           return (
             <div className="diplomacy-status" key={kind}>
               <button onClick={onOpen}>
-                <Icon name={kind === 'war' ? 'war' : 'alliance'} size={16}/>
-                {kind === "war" ? "전쟁" : "동맹"} <b>{list.length}</b>
+                <Icon name={kind === 'war' ? 'war' : kind === 'alliance' ? 'alliance' : 'protect'} size={16}/>
+                {kind === "war" ? "전쟁" : kind === "alliance" ? "동맹" : "종속국"} <b>{list.length}</b>
               </button>
               <div className="diplomacy-preview" role="tooltip">
                 <strong>
-                  {kind === "war" ? "진행 중인 전쟁" : "유효한 상호 방위 조약"}
+                  {kind === "war" ? "진행 중인 전쟁" : kind === "alliance" ? "유효한 상호 방위 조약" : "조공과 외교 종속 관계"}
                 </strong>
                 {list.length ? (
                   list.map((r) => (
                     <p key={`${r.a}-${r.b}`}>
                       {name(r.a)} · {name(r.b)}
                       <small>
-                        {kind === "war" ? r.since : r.allianceSince}년부터 ·{" "}
+                        {kind === "war" ? r.since : kind === "alliance" ? r.allianceSince : r.subjectSince}년부터 ·{" "}
                         {r.reason || "이전 저장에 상세 원인 기록이 없습니다."}
                       </small>
                     </p>
@@ -53,7 +53,7 @@ export default function DiplomacyView({
       </div>
     );
   const events = (world.diplomacyLog || [])
-    .filter((e) => filter === "all" || e.kind === filter)
+    .filter((e) => filter === "all" || e.kind === filter || (filter === "colony" && ["raid", "subjugation", "independence"].includes(e.kind)))
     .slice()
     .reverse();
   return (
@@ -64,13 +64,13 @@ export default function DiplomacyView({
         교류와 접경국의 방어 참전으로 이어집니다.
       </p>
       <div className="diplomacy-filters">
-        {(["all", "war", "alliance"] as const).map((f) => (
+        {(["all", "war", "alliance", "colony"] as const).map((f) => (
           <button
             key={f}
             aria-pressed={filter === f}
             onClick={() => setFilter(f)}
           >
-            {f === "all" ? "전체 기록" : f === "war" ? "전쟁" : "동맹"}
+            {f === "all" ? "전체 기록" : f === "war" ? "전쟁" : f === "alliance" ? "동맹" : "약탈·종속"}
           </button>
         ))}
       </div>
@@ -78,7 +78,7 @@ export default function DiplomacyView({
         {active.map((r) => (
           <details key={`${r.a}-${r.b}`}>
             <summary>
-              <span>{r.war ? "⚔ 전쟁 중" : "⚑ 동맹 중"}</span>
+              <span>{r.war ? "전쟁 중" : r.subject ? "종속 관계" : "동맹 중"}</span>
               <b>
                 {name(r.a)} · {name(r.b)}
               </b>
@@ -87,7 +87,7 @@ export default function DiplomacyView({
               {r.reason || "이전 저장의 상세 원인은 기록되어 있지 않습니다."}
             </p>
             <small>
-              {r.war ? r.since : r.allianceSince}년부터 · 신뢰{" "}
+              {r.war ? r.since : r.subject ? r.subjectSince : r.allianceSince}년부터 · 신뢰{" "}
               {Math.round(r.score * 100)}
             </small>
             <ol>
