@@ -15,5 +15,13 @@ export function politicalColors(w: World) {
         b = root(r.b);
       parent[Math.max(a, b) - 1] = Math.min(a, b);
     }
+  // A tributary keeps its identity and borders but shares the overlord's map tint.
+  for (const r of w.relations) {
+    if (!r.subject) continue;
+    const overlord = r.subject === r.a ? r.b : r.a;
+    if (!w.nations[r.subject - 1]?.alive || !w.nations[overlord - 1]?.alive) continue;
+    const parentId = root(overlord);
+    if (r.subject !== parentId) parent[r.subject - 1] = parentId;
+  }
   return new Map(w.nations.map((n) => [n.id, w.nations[root(n.id) - 1].color]));
 }
