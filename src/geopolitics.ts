@@ -95,19 +95,26 @@ export function progressImperialRelations(w: World, r: Relation, a: Nation, b: N
 }
 
 /** Requires a real navigable sea passage from a functioning port to a foreign coast. */
-function navalPassage(w: World, attacker: number, defender: number, coast: Map<number, number>) {
+function navalPassage(w: World, attacker: number, defender: number, coast: Map<number, number[]>) {
   const port = w.life?.settlements.find((c) =>
     c.nation === attacker && c.urban?.port && c.urban.portTile !== undefined);
-  const targetShore = coast.get(defender);
-  if (!port || port.urban?.portTile === undefined || targetShore === undefined) return 0;
-  const route = transportPath(w, port.urban.portTile, targetShore, true);
-  return route.length >= 2 && route.length <= w.width * 1.2 ? route.length : 0;
+  if (!port || port.urban?.portTile === undefined) return 0;
+  const from = port.urban.portTile;
+  const distance = (i: number) => Math.hypot(
+    (i % w.width) - (from % w.width),
+    Math.floor(i / w.width) - Math.floor(from / w.width));
+  const shores = (coast.get(defender) || []).slice().sort((a, b) => distance(a) - distance(b));
+  for (const shore of shores.slice(0, 4)) {
+    const route = transportPath(w, from, shore, true);
+    if (route.length >= 2 && route.length <= w.width * 1.2) return route.length;
+  }
+  return 0;
 }
 
 export function regionalPolitics(w: World) {
   const borders = new Set<string>();
   const adj = new Map<number, Set<number>>();
-  const coasts = new Map<number, number>();
+  const coasts = new Map<number, number[]>();
   const link = (a: number, b: number) => {
     if (!adj.has(a)) adj.set(a, new Set());
     adj.get(a)!.add(b);
@@ -115,9 +122,13 @@ export function regionalPolitics(w: World) {
   for (let i = 0; i < w.tiles.length; i++) {
     const owner = w.tiles[i].owner;
     if (!owner) continue;
-    if (!coasts.has(owner)) {
+    const shores = coasts.get(owner) || [];
+    if (shores.length < 32) {
       const shore = adjacent(w, i).find((j) => isWater(w.tiles[j]));
-      if (shore !== undefined) coasts.set(owner, shore);
+      if (shore !== undefined && !shores.includes(shore)) {
+        shores.push(shore);
+        coasts.set(owner, shores);
+      }
     }
     for (const j of [i + 1, i + w.width]) {
       if (j >= w.tiles.length || (j === i + 1 && j % w.width === 0)) continue;
@@ -173,7 +184,7 @@ export function regionalPolitics(w: World) {
         (a.capital % w.width) - (b.capital % w.width),
         Math.floor(a.capital / w.width) - Math.floor(b.capital / w.width));
       if (!touch && !(common.length && distance < w.width * 0.55) &&
-          !(eraOf(a) >= 3 && eraOf(b) >= 3 && distance < w.width * 0.5))
+          !(Math.max(eraOf(a), eraOf(b)) >= 5 && distance < w.width * 0.7))
         continue;
       const r = getRelation(w, a.id, b.id);
       if (r.war || r.subject) continue;
