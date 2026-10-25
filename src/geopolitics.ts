@@ -239,7 +239,7 @@ export function regionalPolitics(w: World) {
         continue;
       }
       if (!touch && launched < 2 && timing === 2 && imperial &&
-          eraOf(dominant) >= 7 && dominant.population > 160 && dominant.wealth > 80 &&
+          eraOf(dominant) >= 6 && dominant.population > 160 && dominant.wealth > 80 &&
           weaker.population > 30 && !weaker.protected && !subjects.has(weaker.id) &&
           (wars.get(dominant.id) || 0) < 2) {
         const voyage = navalPassage(w, dominant.id, weaker.id, coasts);
