@@ -46,7 +46,12 @@ export function drawHydrology(ctx: CanvasRenderingContext2D, w: World) {
 }
 export function drawLivingFacilities(ctx: CanvasRenderingContext2D, w: World) {
   for (const c of w.life?.settlements || []) {
-    if (!c.urban || c.urban.lifecycle==='ruin' || (c.urban.operation??1)<.15) continue;
+    if (
+      !c.urban ||
+      c.urban.lifecycle === "ruin" ||
+      (c.urban.operation ?? 1) < 0.15
+    )
+      continue;
     const u = c.urban,
       x = (c.tile % w.width) * 8 + 4,
       y = Math.floor(c.tile / w.width) * 8 + 4,
@@ -215,35 +220,116 @@ export function culturalRoof(
   variant: number,
 ) {
   if (era >= 9 && variant % 3 !== 0) return;
-  const roof = era >= 9 ? -18 : -7;
-  ctx.fillStyle =
+  const y0 = y + (era >= 9 ? -18 : era === 0 ? -3 : -6);
+  const palette =
     material === "clay"
-      ? "#bea16e"
+      ? ["#d3a273", "#8f5d49", "#e7bf8b"]
       : material === "wood"
-        ? "#a2855e"
-        : "#c4c5a7";
-  if (culture === 4) {
-    ctx.fillRect(x - 4, y + roof, 9, 3);
-    ctx.fillRect(x - 3, y + roof - 2, 7, 2);
-    ctx.fillRect(x - 1, y + roof - 3, 3, 1);
-  } else if (culture === 3) {
-    ctx.fillStyle = "#74848f";
-    for (let k = 0; k < 3; k++)
-      ctx.fillRect(x - 5 + k, y + roof - k * 2, 11 - k * 2, 1);
-    ctx.fillRect(x, y + roof - 7, 1, 4);
-  } else if (culture === 2) {
-    ctx.fillRect(x - 5, y - 11, 2, 13);
-    ctx.fillRect(x + 4, y - 11, 2, 13);
-    ctx.fillRect(x - 5, y - 12, 1, 2);
-    ctx.fillRect(x + 5, y - 12, 1, 2);
+        ? ["#b68d62", "#674936", "#d8b58b"]
+        : ["#c4c2ac", "#727a74", "#e1ddc3"];
+  const polygon = (color: string, points: number[][]) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    points.forEach(([dx, dy], i) =>
+      i ? ctx.lineTo(x + dx, y0 + dy) : ctx.moveTo(x + dx, y0 + dy),
+    );
+    ctx.closePath();
+    ctx.fill();
+  };
+  const [light, shade, edge] = palette;
+  if (culture === 0) {
+    polygon(light, [
+      [-5, 1],
+      [-1, -5],
+      [3, -4],
+      [1, 1],
+    ]);
+    polygon(shade, [
+      [1, 1],
+      [3, -4],
+      [7, 0],
+      [5, 2],
+    ]);
+    polygon(edge, [
+      [-5, 1],
+      [-1, -5],
+      [0, -4],
+      [-4, 1],
+    ]);
   } else if (culture === 1) {
-    ctx.fillStyle = "#78967c";
-    ctx.fillRect(x - 5, y + roof, 11, 2);
-    ctx.fillRect(x - 6, y + 2, 4, 2);
-    ctx.fillRect(x + 3, y + 2, 4, 2);
+    polygon(shade, [
+      [-5, 1],
+      [2, 1],
+      [7, -2],
+      [7, 1],
+      [2, 3],
+      [-5, 3],
+    ]);
+    polygon(light, [
+      [-5, 1],
+      [-1, -2],
+      [7, -2],
+      [2, 1],
+    ]);
+    polygon("#7c936f", [
+      [-2, 0],
+      [0, -1],
+      [4, -1],
+      [2, 0],
+    ]);
+  } else if (culture === 2) {
+    polygon(shade, [
+      [2, -6],
+      [6, -8],
+      [6, 3],
+      [2, 6],
+    ]);
+    polygon(light, [
+      [-5, -6],
+      [2, -6],
+      [2, 6],
+      [-5, 6],
+    ]);
+    ctx.fillStyle = edge;
+    for (let k = 0; k < 3; k++) ctx.fillRect(x - 5 + k * 2.5, y0 - 7, 1.5, 2);
+    ctx.fillStyle = shade;
+    ctx.fillRect(x - 2, y0 - 2, 1, 3);
+  } else if (culture === 3) {
+    for (let k = 0; k < 3; k++) {
+      const a = 5 - k;
+      polygon(k % 2 ? shade : light, [
+        [-a, -k * 2],
+        [0, -k * 2 - 2],
+        [a, -k * 2],
+        [3, -k * 2 + 1],
+        [-3, -k * 2 + 1],
+      ]);
+    }
+    ctx.fillStyle = edge;
+    ctx.fillRect(x, y0 - 8, 1, 3);
   } else {
-    ctx.fillStyle = "#a47a55";
-    for (let k = 0; k < 4; k++)
-      ctx.fillRect(x - 5 + k, y + roof - k, 11 - k * 2, 1);
+    polygon(shade, [
+      [0, -5],
+      [3, -4],
+      [5, -2],
+      [6, 1],
+      [-5, 1],
+      [-4, -2],
+      [-2, -4],
+    ]);
+    polygon(light, [
+      [0, -5],
+      [2, -3],
+      [3, 1],
+      [-5, 1],
+      [-4, -2],
+      [-2, -4],
+    ]);
+    polygon(edge, [
+      [-5, 1],
+      [6, 1],
+      [5, 2],
+      [-4, 2],
+    ]);
   }
 }

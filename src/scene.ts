@@ -1,5 +1,5 @@
 import { drawLivingFacilities, culturalRoof } from "./livingScene";
-import { CULTURES } from "./culture";
+import { architecture } from "./civic";
 import { equipmentEra } from "./eras";
 import { pixelPerson } from "./PixelPerson";
 import type { World } from "./engine";
@@ -278,6 +278,7 @@ export function drawInfrastructure(
             ),
           )
         : c.homes;
+    const style = architecture(w, n, c.tile);
     let count = 0;
     for (const [dx, dy] of houseOffsets) {
       const tx = (c.tile % w.width) + dx,
@@ -303,21 +304,13 @@ export function drawInfrastructure(
         count === 0 && c.tile === n.capital,
       );
       if (n.culture) {
-        const shares = c.urban?.influence || n.culture.shares;
-        const ordered = shares
-          .map((value, index) => ({ value, index }))
-          .sort((a, b) => b.value - a.value);
-        const style =
-          ordered[1]?.value > 0.15 && count % 4 === 0
-            ? ordered[1].index
-            : ordered[0].index;
         culturalRoof(
           ctx,
           tx * 8 + 4,
           ty * 8 + 4,
           era,
-          style,
-          CULTURES[style].material,
+          style.style,
+          style.material,
           count,
         );
       }
@@ -453,6 +446,7 @@ export function drawActors(
   clock: number,
   zoom: number,
   paused: boolean,
+  lightMap = false,
 ) {
   const s = w.life;
   if (!s) return;
@@ -490,7 +484,7 @@ export function drawActors(
       ctx.fillStyle = "#e5d4a0";
       ctx.fillRect(pt.x + 15, pt.y - 25, 1, 2);
     }
-  for (const u of zoom < 1.2 ? [] : s.citizens) {
+  for (const u of zoom < (lightMap ? 2 : 1.2) ? [] : s.citizens) {
     const n = w.nations[u.nation - 1];
     if (!n?.alive) continue;
     const x = lerp(u.previousX, u.x) * 8,

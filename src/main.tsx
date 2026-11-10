@@ -79,6 +79,17 @@ const DEFAULT_WORLD: Options = {
 function App() {
   const ui = useUI();
   const [displayMenu, setDisplayMenu] = useState(false);
+  const [smallScreen, setSmallScreen] = useState(
+    () => matchMedia("(max-width: 760px), (pointer: coarse)").matches,
+  );
+  const [lightOverride, setLightOverride] = useState<boolean>();
+  const lightMap = lightOverride ?? smallScreen;
+  useEffect(() => {
+    const query = matchMedia("(max-width: 760px), (pointer: coarse)");
+    const update = () => setSmallScreen(query.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
   const [world, setWorld] = useState<World>();
   const worldRef = useRef<World | undefined>(undefined);
   worldRef.current = world;
@@ -195,8 +206,15 @@ function App() {
   }, []);
   useEffect(() => {
     worker.current?.postMessage({ type: "speed", speed: ui.speed });
-    worker.current?.postMessage({ type: "pause", paused: ui.paused });
-  }, [ui.speed, ui.paused]);
+    const syncPause = () =>
+      worker.current?.postMessage({
+        type: "pause",
+        paused: ui.paused || (lightMap && document.hidden),
+      });
+    syncPause();
+    document.addEventListener("visibilitychange", syncPause);
+    return () => document.removeEventListener("visibilitychange", syncPause);
+  }, [ui.speed, ui.paused, lightMap]);
   useEffect(() => {
     worker.current?.postMessage({ type: "observer", enabled: ui.observe });
   }, [ui.observe]);
@@ -454,6 +472,7 @@ function App() {
             selected={selected}
             focus={focus}
             command={viewCommand}
+            lightMap={lightMap}
             paused={ui.paused}
             speed={ui.speed}
             onStroke={(begin) => {
@@ -648,10 +667,21 @@ function App() {
               <label>
                 <input
                   type="checkbox"
+                  checked={lightMap}
+                  onChange={(e) => setLightOverride(e.target.checked)}
+                />{" "}
+                가벼운 지도
+              </label>
+              <small>
+                멀리서는 주민 표시를 줄이고, 탭을 벗어나면 진행을 잠시 멈춥니다.
+              </small>
+              <label>
+                <input
+                  type="checkbox"
                   checked={ui.labels}
                   onChange={(e) => ui.set({ labels: e.target.checked })}
                 />
-                국가 이름 · 레벨
+                국가 이름 · 문명 시대
               </label>
               <label>
                 <input

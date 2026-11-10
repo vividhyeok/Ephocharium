@@ -1,3 +1,4 @@
+import { readBaseline } from "../observationBaseline";
 import { useEffect, useRef, useState } from "react";
 import type { World } from "../engine";
 import { analyzeWorld } from "./analysis";
@@ -106,6 +107,8 @@ export default function EpiPanel({
         .map((m) => m.content)
         .join(" "),
     );
+    if (/비교|이전.*세계|이전.*시뮬|지난.*세계/.test(q))
+      context.baseline = readBaseline() ?? undefined;
     const c = new AbortController();
     controller.current = c;
     lastRequest.current = q;

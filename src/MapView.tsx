@@ -28,6 +28,7 @@ interface Props {
   focus: { tile: number; request: number } | null;
   command: { action: string; id: number };
   paused: boolean;
+  lightMap?: boolean;
   speed: number;
   onStroke: (begin: boolean) => void;
   onHover: (tile: number) => void;
@@ -39,7 +40,7 @@ export default function MapView(props: Props) {
   const camera = useRef({ x: 0, y: 0, zoom: 1, ready: false });
   useEffect(() => {
     const el = canvas.current!;
-    const dpr = Math.min(
+    let dpr = Math.min(
       window.devicePixelRatio,
       matchMedia("(pointer:coarse)").matches ? 1.5 : 2,
     );
@@ -51,8 +52,13 @@ export default function MapView(props: Props) {
     let cachedDetail = -1;
     let cachedEpoch: number | undefined;
     let frame = 0;
-    const paintInterval = matchMedia("(pointer:coarse)").matches ? 1000 / 24 : 1000 / 30;
+    const paintInterval = matchMedia("(pointer:coarse)").matches
+      ? 1000 / 24
+      : 1000 / 30;
     let lastPaint = -Infinity;
+    let renderedWorld: World | undefined;
+    let renderKey = "";
+    let densityMode = latest.current.lightMap;
     let down = false;
     let drag = false;
     let singleClick = false;
@@ -64,6 +70,7 @@ export default function MapView(props: Props) {
     let snapshot: World | undefined;
     let snapshotTime = performance.now();
     const resize = () => {
+      dpr = Math.min(window.devicePixelRatio, latest.current.lightMap ? 1 : 2);
       const r = el.getBoundingClientRect();
       el.width = Math.round(r.width * dpr);
       el.height = Math.round(r.height * dpr);
@@ -216,7 +223,45 @@ export default function MapView(props: Props) {
     el.oncontextmenu = (e) => e.preventDefault();
     const draw = (timestamp: number = performance.now()) => {
       frame = requestAnimationFrame(draw);
-      if (timestamp - lastPaint < paintInterval) return;
+      if (document.hidden) return;
+      const current = latest.current;
+      if (
+        timestamp - lastPaint <
+        (current.lightMap ? 1000 / 16 : paintInterval)
+      )
+        return;
+      if (densityMode !== current.lightMap) {
+        densityMode = current.lightMap;
+        resize();
+      }
+      const cameraState = camera.current;
+      const viewKey = [
+        cameraState.x,
+        cameraState.y,
+        cameraState.zoom,
+        hover,
+        down,
+        el.width,
+        el.height,
+        current.worldEpoch,
+        current.selected,
+        current.labels,
+        current.political,
+        current.diplomacy,
+        current.cities,
+        current.radius,
+        current.tool,
+        current.pair?.join(":"),
+      ].join("|");
+      if (
+        current.lightMap &&
+        cameraState.zoom < 2 &&
+        renderedWorld === current.world &&
+        renderKey === viewKey
+      )
+        return;
+      renderedWorld = current.world;
+      renderKey = viewKey;
       lastPaint = timestamp;
       const { world: w, political, tool, radius } = latest.current;
       const c = camera.current;
@@ -253,6 +298,10 @@ export default function MapView(props: Props) {
         snapshot = w;
         snapshotTime = performance.now();
       }
+      const detail = c.zoom < 0.85 ? 0 : c.zoom < 2 ? 1 : 2;
+      const renderDetail = latest.current.lightMap
+        ? Math.min(1, detail)
+        : detail;
       if (
         cachedEpoch !== latest.current.worldEpoch ||
         cachedWorld?.seed !== w.seed ||
@@ -260,7 +309,7 @@ export default function MapView(props: Props) {
         cachedRevision !== w.renderRevision ||
         (w.renderRevision === undefined && cachedWorld !== w) ||
         cachedPolitical !== political ||
-        cachedDetail !== (c.zoom < 0.85 ? 0 : c.zoom < 2 ? 1 : 2)
+        cachedDetail !== renderDetail
       ) {
         raster.width = w.width * 8;
         raster.height = w.height * 8;
@@ -268,8 +317,8 @@ export default function MapView(props: Props) {
         ctx = raster.getContext("2d")!;
         drawTerrain(ctx, w, political, c.zoom < 0.85 ? 0 : 1);
         drawHydrology(ctx, w);
-        drawInfrastructure(ctx, w, c.zoom < 0.85 ? 0 : c.zoom < 2 ? 1 : 2);
-        cachedDetail = c.zoom < 0.85 ? 0 : c.zoom < 2 ? 1 : 2;
+        drawInfrastructure(ctx, w, renderDetail);
+        cachedDetail = renderDetail;
         ctx = display;
         cachedEpoch = latest.current.worldEpoch;
         cachedRevision = w.renderRevision;
@@ -290,6 +339,7 @@ export default function MapView(props: Props) {
         time,
         c.zoom,
         latest.current.paused,
+        latest.current.lightMap,
       );
       drawTransport(
         ctx,
@@ -406,7 +456,7 @@ export default function MapView(props: Props) {
                 : "") +
             (n.culture?.baseName ||
               n.name.replace(/ 왕국| 연방| 상업 연맹| 성도국/g, "")) +
-            (" · Lv." + (eraOf(n) + 1)) +
+            (" · " + ERAS[eraOf(n)].name) +
             "";
           const tw = ctx.measureText(label).width;
           if (x + tw < 0 || x - tw > width || y < 0 || y > height) continue;
@@ -482,7 +532,7 @@ export default function MapView(props: Props) {
               ? Math.round(city.population).toLocaleString() +
                 "명 · " +
                 owner.name
-              : "Lv." + (eraOf(owner) + 1) + " · " + ERAS[eraOf(owner)].name,
+              : ERAS[eraOf(owner)].name,
             "동맹 " + allies + " · 전쟁 " + enemies,
           ];
           ctx.font = "12px system-ui";

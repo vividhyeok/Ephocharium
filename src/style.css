@@ -2918,3 +2918,6 @@ input[type="checkbox"] {
 .settler-count{margin:10px 0 0;color:#e4d4a7;font-size:11px}
 
 .epi-message.assistant strong{display:block;color:#fff2cc;font-size:13px}.epi-message.assistant p{margin:5px 0 0}.epi-export{align-self:flex-start;margin:0 15px 4px;padding:5px 0;background:none;color:#e8d8a5;text-decoration:underline;font-size:11px}
+
+.civic-explainer b{display:block;margin-top:8px;color:#e6d5a4}.civic-explainer p,.run-comparison p{margin:5px 0 9px;font-size:12px;line-height:1.55}.run-comparison{margin:10px 0;padding:10px 12px;border:1px solid #b9c9a633;border-radius:10px}.run-comparison summary{cursor:pointer;color:#eddbad;font-size:12px}.run-comparison button{margin-top:8px;padding:8px;border-radius:7px;background:#335752;color:#f2e5bd}.display-menu small{display:block;margin:3px 0 8px}
+@media(max-width:760px){.run-comparison,.civic-explainer{content-visibility:auto;contain-intrinsic-size:auto 70px}.nation-panel .run-comparison button{min-height:40px}}

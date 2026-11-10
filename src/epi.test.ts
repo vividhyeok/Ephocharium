@@ -12,7 +12,7 @@ import {
 import { demographicYear, sum } from "./demographics";
 import { researchRate } from "./progression";
 import { urbanYear } from "./living";
-import { handleEpi, providerAnswer } from "../server/epi";
+import { briefAnswer, handleEpi, providerAnswer } from "../server/epi";
 import { encodeSSE, readSSE } from "./epi/sse";
 const make = () =>
   generate({
@@ -413,4 +413,21 @@ it("records recent observations every ten years and retains the older fifty-year
   expect(validate(JSON.parse(JSON.stringify(w)))).toBe(true);
   const c = analyzeWorld(w, `${n.name} 최근 30년 인구 변화`);
   expect(c.comparison?.requestedYear).toBe(990);
+});
+
+it("returns at most two complete sentences when the provider gets cut off", () => {
+  const text = briefAnswer(
+    "새 나라가 생기려면 빈 농지와 보급이 필요해요.\n전쟁으로 영토를 모두 잃으면 멸망해요.\n다만 [다른 나라](nation:",
+    false,
+    true,
+  );
+  expect(text).toBe(
+    "새 나라가 생기려면 빈 농지와 보급이 필요해요.\n전쟁으로 영토를 모두 잃으면 멸망해요.",
+  );
+  expect(
+    briefAnswer(
+      "**항구가 남아 있어요.** 세 번째 이유입니다. 네 번째 이유입니다.",
+      false,
+    ),
+  ).not.toContain("네 번째");
 });

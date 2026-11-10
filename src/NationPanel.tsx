@@ -1,5 +1,6 @@
 import { leaderLabels } from "./archives";
-import { useEffect, useRef } from "react";
+import { architecture, civicRules, faithPractice } from "./civic";
+import { useEffect, useRef, useState } from "react";
 import type { Nation, World } from "./engine";
 import { eraOf, ERAS } from "./eras";
 import { CULTURES, FAITHS } from "./culture";
@@ -7,6 +8,11 @@ import { MATERIALS, MATERIAL_NAMES } from "./livingTypes";
 import { developmentGate } from "./progression";
 import { skylineSvg } from "./art";
 import Icon from "./Icons";
+import {
+  readBaseline,
+  baselineKey,
+  type Observation,
+} from "./observationBaseline";
 const ROLE_NAMES = {
   farm: "농업",
   mine: "광업",
@@ -34,6 +40,29 @@ export default function NationPanel({
   onDetail: () => void;
   onFront: () => void;
 }) {
+  const [baseline, setBaseline] = useState(readBaseline);
+  const shape = architecture(w, n);
+  const rule = n.strategy?.institution;
+  const observation: Observation = {
+    seed: w.seed,
+    year: w.year,
+    name: n.name,
+    population: Math.round(n.population),
+    territory: n.territory,
+    food: n.food,
+    reason: n.strategy?.reason.slice(0, 300),
+    wars: w.archive?.nations[n.id]?.wars || 0,
+    rule: rule ? civicRules[rule.rule].name : "기록 없음",
+    era: ERAS[eraOf(n)].name,
+  };
+  const saveBaseline = () => {
+    setBaseline(observation);
+    try {
+      localStorage.setItem(baselineKey, JSON.stringify(observation));
+    } catch {
+      /* session comparison still works */
+    }
+  };
   const mini = useRef<HTMLCanvasElement>(null);
   const cities = w.life?.settlements.filter((c) => c.nation === n.id) || [],
     primary = cities.find((c) => c.tile === n.capital) || cities[0],
@@ -49,7 +78,7 @@ export default function NationPanel({
         .length || 0);
   const scene = skylineSvg({
     era: Math.min(e, Math.floor(primary?.development ?? e), u?.builtEra ?? e),
-    culture: culture?.id || 0,
+    culture: shape.style,
     population: n.population,
     farm: cities.some((c) => c.urban?.roles.includes("farm")) ? 1 : 0,
     mine: cities.some((c) => c.urban?.roles.includes("mine")) ? 1 : 0,
@@ -119,9 +148,7 @@ export default function NationPanel({
         </figcaption>
       </figure>
       <section className="diplomatic-card">
-        <b>
-          문명 Lv.{e + 1} / 14 · {ERAS[e].name}
-        </b>
+        <b>문명 시대 · {ERAS[e].name}</b>
         <small>
           다음 시대:{" "}
           {e >= ERAS.length - 1
@@ -151,7 +178,7 @@ export default function NationPanel({
                 const other = w.nations[(r.a === n.id ? r.b : r.a) - 1];
                 return (
                   <button key={other.id} onClick={() => onFocus(other.capital)}>
-                    {other.name} · Lv.{eraOf(other) + 1}
+                    {other.name} · {ERAS[eraOf(other)].name}
                   </button>
                 );
               })}
@@ -221,6 +248,74 @@ export default function NationPanel({
       </section>
       <section className="nation-causes">
         <h3>이 문명이 지금 변하는 이유</h3>
+        <article className="civic-explainer">
+          <div>
+            <b>{rule ? civicRules[rule.rule].name : "제도 관측 중"}</b>
+            {rule && (
+              <p>
+                {rule.basis} → {civicRules[rule.rule].rule}
+              </p>
+            )}
+            <b>수도 양식 · {shape.name}</b>
+            <p>{shape.reason}</p>
+            {culture && (
+              <>
+                <b>{FAITHS[culture.faith]?.name}</b>
+                <p>{faithPractice[culture.faith]}</p>
+              </>
+            )}
+          </div>
+        </article>
+        <details className="run-comparison">
+          <summary>이전 관측과 비교</summary>
+          {baseline && (
+            <div>
+              <p>
+                기준: {baseline.name} · 시드 {baseline.seed} · {baseline.year}년
+              </p>
+              <p>
+                현재: {n.name} · 시드 {w.seed} · {w.year}년
+              </p>
+              <p>
+                시대 {baseline.era} → {observation.era} · 제도 {baseline.rule} →{" "}
+                {observation.rule}
+              </p>
+              <p>
+                인구 {baseline.population.toLocaleString()} →{" "}
+                {observation.population.toLocaleString()} · 영토{" "}
+                {baseline.territory} → {observation.territory}
+              </p>
+              <p>
+                기록된 개전 {baseline.wars} → {observation.wars}
+              </p>
+              <small>
+                선택한 두 관측의 차이입니다. 조건이 다르면 이 수치만으로 원인을
+                단정할 수 없습니다.
+              </small>
+            </div>
+          )}
+          <button type="button" onClick={saveBaseline}>
+            {baseline
+              ? "이 국가로 비교 기준 교체"
+              : "이 국가를 비교 기준으로 저장"}
+          </button>
+        </details>
+        <details className="run-comparison">
+          <summary>외교 결정과 당시 이유</summary>
+          {(w.diplomacyLog || [])
+            .filter((e) => e.a === n.id || e.b === n.id)
+            .slice(-6)
+            .reverse()
+            .map((e) => (
+              <p key={e.id}>
+                {e.year}년 · {w.nations[(e.a === n.id ? e.b : e.a) - 1]?.name} —{" "}
+                {e.reason}
+              </p>
+            ))}
+          {!(w.diplomacyLog || []).some(
+            (e) => e.a === n.id || e.b === n.id,
+          ) && <p>기록된 외교 결정이 없습니다.</p>}
+        </details>
         {n.strategy && (
           <article>
             <div>
@@ -244,7 +339,9 @@ export default function NationPanel({
         {w.relations
           .filter(
             (r) =>
-              r.accessUntil !== undefined && r.accessUntil >= w.year && (r.a === n.id || r.b === n.id),
+              r.accessUntil !== undefined &&
+              r.accessUntil >= w.year &&
+              (r.a === n.id || r.b === n.id),
           )
           .map((r) => (
             <p key={`${r.a}:${r.b}`}>

@@ -34,6 +34,7 @@ export function raidForResources(
     w.year - (r.lastRaidYear ?? -10000) < 40
   )
     return false;
+  const reserveBefore = attacker.food / Math.max(1, attacker.population * 0.22);
   const grain = Math.min(victim.food * 0.12, attacker.population * 0.15);
   const taken =
     grain >= 1 && consumeNation(w, victim, "food", grain) ? grain : 0;
@@ -60,7 +61,7 @@ export function raidForResources(
     r,
     "raid",
     (overseas ? "항구와 보급로를 통한 해상 약탈" : "접경 지역 식량·재산 약탈") +
-      " · 식량 " +
+      ` · 공격국의 당시 식량 비축 ${reserveBefore.toFixed(1)}년분 · 식량 ` +
       Math.round(taken) +
       ", 재산 " +
       Math.round(silver) +
@@ -186,6 +187,17 @@ export function regionalPolitics(w: World) {
   const borders = new Set<string>();
   const adj = new Map<number, Set<number>>();
   const coasts = new Map<number, number[]>();
+  const portsByNation = new Set(
+    w.life?.settlements
+      .filter(
+        (c) =>
+          c.urban?.port &&
+          c.urban.portTile !== undefined &&
+          (c.urban.operation ?? 1) > 0.2,
+      )
+      .map((c) => c.nation),
+  );
+
   const link = (a: number, b: number) => {
     if (!adj.has(a)) adj.set(a, new Set());
     adj.get(a)!.add(b);
@@ -279,6 +291,12 @@ export function regionalPolitics(w: World) {
       const a = alive[i],
         b = alive[j];
       const touch = borders.has(key(a.id, b.id));
+      const seaContact =
+        !touch &&
+        coasts.has(a.id) &&
+        coasts.has(b.id) &&
+        ((portsByNation.has(a.id) && a.tech >= 2) ||
+          (portsByNation.has(b.id) && b.tech >= 2));
       const common = [...threats.get(a.id)!].filter((id) =>
         threats.get(b.id)!.has(id),
       );
@@ -288,6 +306,7 @@ export function regionalPolitics(w: World) {
       );
       if (
         !touch &&
+        !seaContact &&
         !(common.length && distance < w.width * 0.55) &&
         !(Math.max(eraOf(a), eraOf(b)) >= 2 && distance < w.width * 0.7)
       )
@@ -307,8 +326,16 @@ export function regionalPolitics(w: World) {
       const rivalry = touch
         ? Math.min(0.35, (imbalance - 1) * 0.13) + shortage * 0.26
         : 0;
+      const ports =
+        Number(a.strategy?.institution?.rule === "charter") +
+        Number(b.strategy?.institution?.rule === "charter");
+      const levies =
+        Number(a.strategy?.institution?.rule === "levy") +
+        Number(b.strategy?.institution?.rule === "levy");
       const target =
         0.17 +
+        ports * 0.09 -
+        levies * 0.05 +
         Math.min(0.3, common.length * 0.15) -
         expansion * 0.43 -
         rivalry -
@@ -352,43 +379,65 @@ export function regionalPolitics(w: World) {
         (Math.floor(w.year / 8) + a.id * 17 + b.id * 23 + w.seed) % 4;
       const actor = hunger(desperate) > 0.28 ? desperate : dominant;
       const objective = actor.id === a.id ? b : a;
+      const maritimeRivalry =
+        seaContact &&
+        portsByNation.has(actor.id) &&
+        (r.score < -0.12 || (r.grievance || 0) > 0.28 || shortage > 0.34);
+      const diplomacyPriority =
+        actor.strategy?.institution?.rule === "charter" &&
+        (r.grievance || 0) < 0.4 &&
+        hunger(actor) < 0.6;
       if (
-        (touch || imperial || shortage > 0.34) &&
+        (touch || maritimeRivalry || imperial || shortage > 0.34) &&
         declared < 4 &&
         timing === 0 &&
+        !diplomacyPriority &&
         strained &&
         (wars.get(a.id) || 0) < 2 &&
         (wars.get(b.id) || 0) < 2 &&
         Math.min(a.stability, b.stability) > 0.3 &&
-        (desperate.aggression > 0.44 || dominant.aggression > 0.54) &&
-        (touch ||
-          !!planCampaign(
-            w,
-            actor.id,
-            objective.id,
-            actor.capital,
-            objective.capital,
-          ))
+        (desperate.aggression > 0.44 || dominant.aggression > 0.54)
       ) {
-        treaty(
-          w,
-          r,
-          "war",
-          hunger(actor) > 0.28
-            ? "식량 부족으로 농경지와 보급지를 확보하려는 침공입니다."
-            : imperial
-              ? "강국이 자원과 전략적 영향권을 확보하기 위해 약소국을 침공했습니다."
-              : "접경 교역로와 세력 균형을 둘러싼 경쟁이 무력 충돌로 이어졌습니다.",
-          actor.id,
-        );
-        wars.set(a.id, (wars.get(a.id) || 0) + 1);
-        wars.set(b.id, (wars.get(b.id) || 0) + 1);
-        declared++;
-        continue;
+        const path = touch
+          ? undefined
+          : planCampaign(
+              w,
+              actor.id,
+              objective.id,
+              actor.capital,
+              objective.capital,
+            );
+        if (touch || path?.path.length) {
+          const reason =
+            hunger(actor) > 0.28
+              ? `인구 대비 식량 비축 ${(actor.food / Math.max(1, actor.population * 0.22)).toFixed(1)}년분 · 농경지와 보급지 확보`
+              : imperial
+                ? `기술 시대 ${techGap}단계 격차 · 국력 ${imbalance.toFixed(1)}배를 바탕으로 영향권 확대`
+                : `관계 점수 ${r.score.toFixed(2)} · 누적 원한 ${(r.grievance || 0).toFixed(2)}로 외교 악화`;
+          treaty(
+            w,
+            r,
+            "war",
+            (path?.naval
+              ? "해상 침공 · 확인된 항로 · "
+              : path
+                ? "비접경 육로 원정 · "
+                : "") + reason,
+            actor.id,
+          );
+          wars.set(a.id, (wars.get(a.id) || 0) + 1);
+          wars.set(b.id, (wars.get(b.id) || 0) + 1);
+          declared++;
+          continue;
+        }
       }
       if (
         touch &&
         raided < 3 &&
+        !(
+          desperate.strategy?.institution?.rule === "charter" &&
+          hunger(desperate) < 0.65
+        ) &&
         timing === 1 &&
         hunger(desperate) > 0.35 &&
         desperate.stability > 0.22 &&

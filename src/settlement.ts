@@ -86,19 +86,28 @@ function scout(w: World, start: number, parent: number) {
   for (let i = best; i !== start; i = prev.get(i)!) path.push(i);
   return path.reverse();
 }
+export const foundingRules = {
+  minimumPopulation: 95,
+  minimumNationAge: 24,
+  migrationCooldown: 80,
+  maxParties: 12,
+};
+export const foundingNationCap = (w: World) => (w.preset === "dawn" ? 26 : 16);
 export function launchSettlers(w: World) {
-  if (w.preset === "empty" || w.year % 8 !== 0 || w.settlers.length >= 12)
-    return;
   if (
-    w.nations.filter((n) => n.alive).length >= (w.preset === "dawn" ? 26 : 16)
+    w.preset === "empty" ||
+    w.year % 8 !== 0 ||
+    w.settlers.length >= foundingRules.maxParties
   )
     return;
+  if (w.nations.filter((n) => n.alive).length >= foundingNationCap(w)) return;
   for (const n of w.nations) {
     if (
       !n.alive ||
-      n.population < 95 ||
-      w.year - (n.foundedYear ?? 0) < 24 ||
-      w.year - (n.lastMigrationYear ?? -1000) < 80 ||
+      n.population < foundingRules.minimumPopulation ||
+      w.year - (n.foundedYear ?? 0) < foundingRules.minimumNationAge ||
+      w.year - (n.lastMigrationYear ?? -1000) <
+        foundingRules.migrationCooldown ||
       w.settlers.some((s) => s.parentId === n.id)
     )
       continue;
@@ -155,7 +164,7 @@ export function launchSettlers(w: World) {
       [n.id],
       home.tile,
     );
-    if (w.settlers.length >= 12) break;
+    if (w.settlers.length >= foundingRules.maxParties) break;
   }
 }
 export function settleYear(w: World) {

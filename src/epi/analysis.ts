@@ -1,3 +1,6 @@
+import { foundingNationCap, foundingRules } from "../settlement";
+import { architecture, civicRules, faithPractice } from "../civic";
+import { FAITHS } from "../culture";
 import type { World, Nation } from "../engine";
 import { eraOf } from "../eras";
 import { developmentGate } from "../progression";
@@ -177,7 +180,17 @@ export function analyzeWorld(
         ).values(),
       ].sort((a, b) => a.year - b.year);
       const d = n.demography;
+      const shape = architecture(w, n),
+        rule = n.strategy?.institution;
       return {
+        identity: {
+          architecture: shape.name,
+          architectureReason: shape.reason,
+          faith: n.culture ? FAITHS[n.culture.faith]?.name : undefined,
+          practice: n.culture ? faithPractice[n.culture.faith] : undefined,
+          rule: rule ? civicRules[rule.rule].name : undefined,
+          basis: rule?.basis,
+        },
         trends,
         foundedYear: n.foundedYear,
         parentId: n.parentId,
@@ -344,6 +357,26 @@ export function analyzeWorld(
     knownSince: w.archive?.knownSince ?? w.year,
     overview: getWorldOverview(w),
     matchedIds: focusIds,
+    founding: /건국|신생|탄생|새 나라|새 국가|멸망|망하/.test(question)
+      ? {
+          settlers: w.settlers.length,
+          cap: foundingNationCap(w),
+          alive: alive.length,
+          enabled: w.preset !== "empty",
+          ...foundingRules,
+          recentFounded: w.nations.filter(
+            (n) => n.foundedYear !== undefined && n.foundedYear >= w.year - 100,
+          ).length,
+          recentFoundedFallen: w.nations.filter(
+            (n) =>
+              !n.alive &&
+              n.foundedYear !== undefined &&
+              n.foundedYear >= w.year - 100,
+          ).length,
+          conditions:
+            "독립 이주에는 모국 인구와 나이, 이동 가능한 빈 농지, 도시의 식량과 이동 보급이 필요합니다. 이 한도는 독립 이주 출발에 적용되며 다른 형태의 건국과는 별개입니다.",
+        }
+      : undefined,
     index: indexIds
       .map((id) => w.nations[id - 1])
       .filter(Boolean)

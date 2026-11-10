@@ -1,4 +1,4 @@
-const CACHE = "epocharium-0.7.1";
+const CACHE = "epocharium-0.7.2";
 self.addEventListener("install", (event) =>
   event.waitUntil(
     caches

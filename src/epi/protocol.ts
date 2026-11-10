@@ -50,6 +50,16 @@ export const nationSchema = z
     growth: z.number().finite().min(-1e12).max(1e12).nullable(),
     gate: text,
     cityCount: num,
+    identity: z
+      .object({
+        architecture: text,
+        architectureReason: text,
+        faith: text.optional(),
+        practice: text.optional(),
+        rule: text.optional(),
+        basis: text.optional(),
+      })
+      .optional(),
     trends: z.array(trendSchema).max(12).optional(),
     foundedYear: num.optional(),
     parentId: num.optional(),
@@ -131,6 +141,35 @@ export const contextSchema = z
     ),
     events: z.array(eventSchema).max(24),
     matchedIds: z.array(num).max(24).optional(),
+    baseline: z
+      .object({
+        seed: z.number().int(),
+        year: num,
+        name: text,
+        population: num,
+        territory: num,
+        wars: num,
+        rule: text,
+        era: text,
+        food: num.optional(),
+        reason: text.optional(),
+      })
+      .optional(),
+    founding: z
+      .object({
+        settlers: num,
+        cap: num,
+        alive: num,
+        enabled: z.boolean(),
+        minimumPopulation: num,
+        minimumNationAge: num,
+        migrationCooldown: num,
+        maxParties: num,
+        recentFounded: num,
+        recentFoundedFallen: num,
+        conditions: text,
+      })
+      .optional(),
     relations: z
       .array(
         z.object({

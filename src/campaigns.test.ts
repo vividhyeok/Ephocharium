@@ -214,3 +214,37 @@ it("mobilization removes workers from production rather than supplying a free ar
     peaceful.life!.settlements.find((c) => c.nation === 1)!.urban!.produced,
   );
 });
+
+it("hostile island states can start an overseas war without tech dominance or starvation, and land the army", () => {
+  const { w, home, contexts } = islands();
+  w.year = 160;
+  w.nations[3].alive = false;
+  const a = w.nations[0],
+    b = w.nations[2];
+  a.tech = b.tech = 17;
+  a.population = 1200;
+  b.population = 600;
+  a.aggression = 0.95;
+  b.aggression = 0.6;
+  a.stability = b.stability = 0.8;
+  const relation = getRelation(w, 1, 3);
+  relation.score = -0.8;
+  relation.grievance = 0.6;
+  relation.since = 0;
+  home.urban!.port = 0;
+  regionalPolitics(w);
+  expect(relation.war).toBe(false);
+  home.urban!.port = 1;
+  regionalPolitics(w);
+  expect(relation.war).toBe(true);
+  expect(relation.reason).toContain("해상 침공");
+  for (let i = 0; i < 30; i++) {
+    updateArmies(w, contexts);
+    w.year++;
+  }
+  expect(
+    w.life!.armies.some(
+      (a) => a.nation === 1 && a.navalOrigin === home.tile && a.x >= 20,
+    ),
+  ).toBe(true);
+});

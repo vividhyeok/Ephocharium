@@ -110,7 +110,7 @@ export default function NationBrowser({
                   <span className="kingdom-info">
                     <b>{n.culture?.baseName || n.name}</b>
                     <small>
-                      Lv.{eraOf(n) + 1} ·{" "}
+                      {ERAS[eraOf(n)].name} ·{" "}
                       {sort === "territory"
                         ? n.territory + "구역"
                         : sort === "religion"
