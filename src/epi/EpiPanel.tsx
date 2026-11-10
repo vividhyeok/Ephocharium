@@ -202,6 +202,39 @@ export default function EpiPanel({
       );
     });
   }
+  function exportRecords() {
+    const snapshot = world.current;
+    const data = {
+      year: snapshot.year,
+      archive: snapshot.archive,
+      diplomacy: snapshot.diplomacyLog,
+      events: snapshot.history,
+      nations: snapshot.nations.map((n) => ({
+        id: n.id,
+        name: n.name,
+        alive: n.alive,
+        foundedYear: n.foundedYear,
+        parentId: n.parentId,
+        population: n.population,
+        food: n.food,
+        territory: n.territory,
+        tech: n.tech,
+        wealth: n.wealth,
+        samples: n.samples,
+        eras: n.eraHistory,
+        strategy: n.strategy,
+        demography: n.demography,
+      })),
+    };
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `epocharium-records-${snapshot.year}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
   return (
     <aside
       className="epi-panel"
@@ -255,7 +288,22 @@ export default function EpiPanel({
               {m.year.toLocaleString()}년 관측
             </small>
             <div>
-              {linked(m.content || (busy ? "세계의 기록을 읽고 있어요…" : ""))}
+              {m.role === "assistant" && m.content
+                ? m.content
+                    .trim()
+                    .split(/\n+/)
+                    .map((line, i) =>
+                      i === 0 ? (
+                        <strong key={i}>
+                          {linked(line.replace(/^#+\s*/, ""))}
+                        </strong>
+                      ) : (
+                        <p key={i}>{linked(line.replace(/^[-*]\s+/, "• "))}</p>
+                      ),
+                    )
+                : linked(
+                    m.content || (busy ? "세계의 기록을 읽고 있어요…" : ""),
+                  )}
             </div>
             {m.error && (
               <p className="epi-error">
@@ -367,6 +415,9 @@ export default function EpiPanel({
           </button>
         )}
       </form>
+      <button type="button" className="epi-export" onClick={exportRecords}>
+        관측 기록 내려받기 · JSON
+      </button>
       <small className="epi-footnote">
         읽기 전용 · 최근 8턴과 질문 요약 · 다시 요청 시 새 호출이 발생합니다
       </small>

@@ -2916,3 +2916,5 @@ input[type="checkbox"] {
 .observer-dock{bottom:110px;width:max-content;max-width:calc(100% - 32px);height:auto}.observer-dock small{flex:0 0 180px;line-height:1.5}.observer-dock button{flex-shrink:0}@media(max-width:1000px){.observer-dock small{display:none}}@media(max-width:760px){.observer-dock{bottom:105px;max-width:calc(100% - 24px)}}
 
 .settler-count{margin:10px 0 0;color:#e4d4a7;font-size:11px}
+
+.epi-message.assistant strong{display:block;color:#fff2cc;font-size:13px}.epi-message.assistant p{margin:5px 0 0}.epi-export{align-self:flex-start;margin:0 15px 4px;padding:5px 0;background:none;color:#e8d8a5;text-decoration:underline;font-size:11px}

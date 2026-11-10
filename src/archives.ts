@@ -39,6 +39,12 @@ export interface Archive {
       territory: number;
       wealth: number;
       military: number;
+      food?: number;
+      stability?: number;
+      births?: number;
+      deaths?: number;
+      cities?: number;
+      priority?: string;
     }[];
   }[];
 }
@@ -95,7 +101,7 @@ export function archiveYear(w: World) {
   const a = w.archive!;
   if (w.relations.some((r) => r.war)) a.peaceSince = null;
   else a.peaceSince ??= w.year;
-  if (w.year % 50 === 0) {
+  if (w.year % 10 === 0) {
     a.balances.push({
       year: w.year,
       nations: w.nations
@@ -106,13 +112,21 @@ export function archiveYear(w: World) {
           tech: n.tech,
           territory: n.territory,
           wealth: n.wealth,
+          food: n.food,
+          stability: n.stability,
+          births: n.demography?.births,
+          deaths: n.demography?.deaths,
+          cities: w.life?.settlements.filter((c) => c.nation === n.id).length,
+          priority: n.strategy?.priority,
           military:
             w.life?.armies
               .filter((x) => x.nation === n.id)
               .reduce((s, x) => s + x.strength, 0) || 0,
         })),
     });
-    if (a.balances.length > 400) a.balances.shift();
+    a.balances = a.balances
+      .filter((b) => b.year % 50 === 0 || b.year > w.year - 1000)
+      .slice(-480);
   }
 }
 export function leaderLabels(t: LeaderTraits) {
@@ -176,20 +190,26 @@ export function validateArchive(w: World) {
           n.eraCounts.every(num),
       ) &&
       Array.isArray(a.balances) &&
-      a.balances.length <= 400 &&
+      a.balances.length <= 480 &&
       a.balances.every(
         (b) =>
           num(b.year) &&
           b.nations.length <= w.nations.length &&
-          b.nations.every((n) =>
-            [
-              n.id,
-              n.population,
-              n.tech,
-              n.territory,
-              n.wealth,
-              n.military,
-            ].every(num),
+          b.nations.every(
+            (n) =>
+              [
+                n.id,
+                n.population,
+                n.tech,
+                n.territory,
+                n.wealth,
+                n.military,
+              ].every(num) &&
+              [n.food, n.stability, n.births, n.deaths, n.cities].every(
+                (v) => v === undefined || num(v),
+              ) &&
+              (n.priority === undefined ||
+                (typeof n.priority === "string" && n.priority.length <= 30)),
           ),
       ) &&
       w.nations.every((n) => !n.leaderTraits || traits(n.leaderTraits))

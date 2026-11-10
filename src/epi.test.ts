@@ -379,3 +379,38 @@ it("archives support more than 256 historical nations after repeated secessions"
   expect(Object.keys(w.archive!.nations)).toHaveLength(300);
   expect(validate(w)).toBe(true);
 });
+
+it("uses requested nation and year instead of the selected nation and preserves legacy population samples", () => {
+  const w = make();
+  w.year = 160;
+  const n = w.nations[1];
+  n.samples = [
+    { year: 90, population: 185, territory: 11 },
+    { year: 150, population: 215, territory: 13 },
+  ];
+  const c = analyzeWorld(w, `${n.name} 95년 당시 인구는?`, w.nations[0].id);
+  expect(c.matchedIds).toEqual([n.id]);
+  expect(c.comparison?.requestedYear).toBe(95);
+  expect(c.nations[0].trends).toContainEqual({
+    year: 90,
+    population: 185,
+    territory: 11,
+  });
+  expect(contextSchema.safeParse(c).success).toBe(true);
+});
+
+it("records recent observations every ten years and retains the older fifty-year record", () => {
+  const w = make();
+  const n = w.nations[0];
+  for (const year of [10, 50, 1020]) {
+    w.year = year;
+    archiveYear(w);
+  }
+  expect(w.archive!.balances.map((b) => b.year)).toEqual([50, 1020]);
+  expect(
+    w.archive!.balances.at(-1)?.nations.find((row) => row.id === n.id)?.food,
+  ).toBe(n.food);
+  expect(validate(JSON.parse(JSON.stringify(w)))).toBe(true);
+  const c = analyzeWorld(w, `${n.name} 최근 30년 인구 변화`);
+  expect(c.comparison?.requestedYear).toBe(990);
+});

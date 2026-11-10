@@ -2,8 +2,21 @@ import { z } from "zod";
 const num = z.number().finite().min(0).max(1e12),
   text = z.string().max(300),
   nullable = num.nullable();
-import {metrics} from './metrics.js';
-export {metrics} from './metrics.js';
+import { metrics } from "./metrics.js";
+export { metrics } from "./metrics.js";
+const trendSchema = z.object({
+  year: num,
+  population: num,
+  territory: num,
+  tech: num.optional(),
+  wealth: num.optional(),
+  food: num.optional(),
+  stability: num.optional(),
+  births: num.optional(),
+  deaths: num.optional(),
+  cities: num.optional(),
+  priority: text.optional(),
+});
 export const nationSchema = z
   .object({
     id: num.int(),
@@ -37,6 +50,15 @@ export const nationSchema = z
     growth: z.number().finite().min(-1e12).max(1e12).nullable(),
     gate: text,
     cityCount: num,
+    trends: z.array(trendSchema).max(12).optional(),
+    foundedYear: num.optional(),
+    parentId: num.optional(),
+    strategy: z
+      .object({ year: num, reason: text, priority: text, investment: num })
+      .optional(),
+    demography: z
+      .object({ births: num, deaths: num, capacity: num, lifeExpectancy: num })
+      .optional(),
     cities: z
       .array(
         z.object({
@@ -59,10 +81,17 @@ export const nationSchema = z
       )
       .max(5),
     wars: num,
-    eras:z.array(z.object({era:num,year:num})).max(8),
-    leaderCount:num,
+    eras: z.array(z.object({ era: num, year: num })).max(8),
+    leaderCount: num,
     leaders: z
-      .array(z.object({ name: text, from: num, to: num.optional(),traits:z.array(text).max(4) }))
+      .array(
+        z.object({
+          name: text,
+          from: num,
+          to: num.optional(),
+          traits: z.array(text).max(4),
+        }),
+      )
       .max(8),
   })
   .strict();
@@ -100,7 +129,8 @@ export const contextSchema = z
       z.enum(metrics),
       z.array(z.object({ id: num, name: text, value: num })).max(5),
     ),
-    events: z.array(eventSchema).max(18),
+    events: z.array(eventSchema).max(24),
+    matchedIds: z.array(num).max(24).optional(),
     relations: z
       .array(
         z.object({
@@ -133,7 +163,7 @@ export const contextSchema = z
       })
       .nullable(),
     notFound: z.array(text).max(8),
-    warnings:z.array(text).max(4),
+    warnings: z.array(text).max(4),
   })
   .strict();
 export type EpiContext = z.infer<typeof contextSchema>;
@@ -217,7 +247,11 @@ export function queryEvidence(c: EpiContext, name: string, args: unknown) {
         lastEnd: c.overview.lastWarEnd,
         peaceYears: c.overview.peaceYears,
         counts: rows.map((n) => ({ id: n.id, wars: n.wars })),
-        events: c.events.filter((e) => /전쟁|휴전|평화/.test(e.text)),
+        events: c.events.filter(
+          (e) =>
+            /전쟁|휴전|평화/.test(e.text) &&
+            (!ids.length || e.nations.some((id) => ids.includes(id))),
+        ),
       };
     case "getPopulationTrends":
       return {
@@ -225,11 +259,15 @@ export function queryEvidence(c: EpiContext, name: string, args: unknown) {
           id: n.id,
           population: n.population,
           growth: n.growth,
+          samples: n.trends,
+          demography: n.demography,
         })),
         past: c.comparison,
       };
     case "getRecentEvents":
-      return c.events.slice(-(q.limit || 8));
+      return c.events
+        .filter((e) => !ids.length || e.nations.some((id) => ids.includes(id)))
+        .slice(-(q.limit || 8));
     default:
       throw Error("Unknown read-only query");
   }

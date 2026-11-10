@@ -51,6 +51,9 @@ test("Epi uses bounded real observations for 23 turns, links nations, survives e
   await expect(page.locator(".kingdom-list button").first()).toBeVisible();
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
   await page.getByRole("button", { name: "에피", exact: true }).click();
+  const exportDownload=page.waitForEvent("download");
+  await page.getByRole("button",{name:"관측 기록 내려받기 · JSON"}).click();
+  expect((await exportDownload).suggestedFilename()).toMatch(/^epocharium-records-\d+\.json$/);
   for (let i = 0; i < 23; i++) {
     await page
       .getByLabel("에피에게 질문")
