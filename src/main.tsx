@@ -760,11 +760,16 @@ function App() {
           <aside className="tile-inspector">
             <span className="eyebrow">가까이 들여다보기</span>
             <h3>
-              {
-                ["바다", "모래 해안", "비옥한 평야", "숲", "산악", "설원"][
-                  tile.t
-                ]
-              }
+              {tile.biome === "arid"
+                ? "사막"
+                : [
+                    "바다",
+                    "모래 해안",
+                    "평야",
+                    (tile.wood || 0) < 8 ? "벌목지" : "숲",
+                    "산악",
+                    "설원",
+                  ][tile.t]}
               <small>
                 {hoverTile % world!.width},{" "}
                 {Math.floor(hoverTile / world!.width)}
@@ -788,6 +793,11 @@ function App() {
               <span>
                 비옥도 <b>{Math.round(tile.fertility * 100)}%</b>
               </span>
+              {tile.t !== 0 && tile.elevation !== undefined && (
+                <span>
+                  상대 고도 <b>{Math.round(tile.elevation * 100)}</b>
+                </span>
+              )}
             </div>
             {hoveredPerson && (
               <p>

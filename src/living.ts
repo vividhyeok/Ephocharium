@@ -187,6 +187,36 @@ function cityZones(w: World, owned: Map<number, number[]>) {
   zones.set(w, { key, year: w.year, data });
   return data;
 }
+export function degradeDryLand(w: World, cells: number[], pollution: number) {
+  if (pollution < 0.15) return [];
+  const changed: number[] = [];
+  for (const i of cells) {
+    const t = w.tiles[i];
+    const moisture = t.moisture ?? 0.5;
+    if (
+      (t.t !== 2 && t.t !== 3) ||
+      t.irrigated ||
+      t.lake ||
+      t.river ||
+      moisture >= 0.48 ||
+      (t.temperature ?? 0) < 0.55
+    )
+      continue;
+    const bare = t.t === 3 ? Math.max(0, 1 - (t.wood || 0) / 50) : 1;
+    t.degradation = Math.min(
+      1,
+      (t.degradation || 0) + (pollution - 0.13) * (0.48 - moisture) * bare * 2,
+    );
+    if (t.degradation < 1) continue;
+    t.t = 1;
+    t.biome = "arid";
+    t.baseFertility = t.fertility = Math.min(t.fertility, 0.22);
+    t.wood = 0;
+    changed.push(i);
+  }
+  return changed;
+}
+
 export function urbanYear(w: World, owned: Map<number, number[]>) {
   ensureLiving(w);
   reconcileLiving(w);
@@ -244,6 +274,20 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
           (e >= 11 ? 0.17 : 0) +
           damage * 0.3,
       );
+      if (e >= 7 && w.year % 4 === 0 && (c.industry || 0) >= 0.3) {
+        const degraded = degradeDryLand(w, z.cells, u.pollution);
+        if (degraded.length) {
+          record(
+            w,
+            c.name +
+              " 주변의 건조한 토지 " +
+              degraded.length +
+              "칸이 산업 오염으로 사막화됐습니다",
+            [n.id],
+            degraded[0],
+          );
+        }
+      }
       u.capacity =
         Math.max(
           24,
@@ -299,7 +343,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
         u.stock.timber += extract(
           w.tiles[i],
           "timber",
-          Math.min(1, labor * 0.01) * (1 - damage),
+          w.tiles[i].t === 3 ? Math.min(8, labor * 0.035) * (1 - damage) : 0,
         );
       }
       const made = manufacturing(u.stock, e, labor, u.logistics, n.wealth);

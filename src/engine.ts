@@ -16,6 +16,7 @@ import {
 import { frontierYear } from "./frontier";
 import { validateLiving } from "./livingValidation";
 import { transportYear } from "./transport";
+import { strategicWarYear, type Missile } from "./strategicWar";
 import { ensureLiving, urbanYear, reconcileLiving } from "./living";
 import { buildGeography } from "./geography";
 import { prepareCulture, culturalName, updateCulture } from "./culture";
@@ -63,6 +64,7 @@ export interface Tile {
   reclaimed?: boolean;
   irrigated?: boolean;
   baseFertility?: number;
+  degradation?: number;
   elevation?: number;
   spill?: number;
   downstream?: number;
@@ -94,6 +96,7 @@ export interface Nation {
   culture?: Culture;
   demography?: Demography;
   inventory?: Inventory;
+  strategicReady?: number;
   airSupport?: { tile: number; until: number };
   tendencies?: Tendencies;
   eraHistory?: { era: number; year: number }[];
@@ -168,6 +171,7 @@ export interface World {
   atlases?: Atlas[];
   identityRevision?: number;
   cartographyRevision?: number;
+  missiles?: Missile[];
   diplomacyLog?: DiplomaticEvent[];
   diplomacySequence?: number;
   seed: number;
@@ -577,6 +581,7 @@ export function step(w: World) {
   }
   launchSettlers(w);
   updateDiplomacy(w);
+  strategicWarYear(w);
   updateLife(w, holdings);
   frontierYear(w);
   transportYear(w);
@@ -814,6 +819,7 @@ export function apply(w: World, tool: string, tile: number, radius = 1) {
         t.elevation =
           tool === "ocean" ? -0.2 : tool === "mountain" ? 0.9 : 0.35;
         t.baseFertility = t.fertility;
+        delete t.degradation;
         t.lake = false;
         t.river = 0;
         if (!land(t)) t.owner = 0;
@@ -898,6 +904,7 @@ export function validate(data: unknown): data is World {
         finite(t.fertility, 0, 1) &&
         finite(t.ore, 0, 1) &&
         finite(t.damage, 0, 1) &&
+        (t.degradation === undefined || finite(t.degradation, 0, 1)) &&
         (t.wood === undefined || finite(t.wood)) &&
         (t.mineral === undefined || finite(t.mineral)) &&
         (t.road === undefined || finite(t.road, 0, 1)),
@@ -909,6 +916,7 @@ export function validate(data: unknown): data is World {
         n &&
         n.id === i + 1 &&
         validateStrategy(n) &&
+        (n.strategicReady === undefined || finite(n.strategicReady)) &&
         (n.foundedYear === undefined || finite(n.foundedYear)) &&
         (n.parentId === undefined || (id(n.parentId) && n.parentId !== n.id)) &&
         typeof n.name === "string" &&
@@ -1002,6 +1010,25 @@ export function validate(data: unknown): data is World {
             s.cohorts.length === 3 &&
             s.cohorts.every((x) => finite(x)))),
     ) &&
+    (w.missiles === undefined ||
+      (Array.isArray(w.missiles) &&
+        w.missiles.length <= 32 &&
+        w.missiles.every(
+          (m) =>
+            m &&
+            id(m.attacker) &&
+            id(m.defender) &&
+            m.attacker !== m.defender &&
+            tile(m.from) &&
+            tile(m.target) &&
+            Number.isSafeInteger(m.city) &&
+            m.city > 0 &&
+            Number.isSafeInteger(m.launched) &&
+            Number.isSafeInteger(m.arrives) &&
+            m.launched >= 0 &&
+            m.launched <= w.year &&
+            m.arrives > m.launched,
+        ))) &&
     Array.isArray(w.effects) &&
     w.effects.length < 100000 &&
     w.effects.every(

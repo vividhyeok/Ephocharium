@@ -151,14 +151,18 @@ export function buildGeography(w: World, newTerrain = false) {
             ? "snow"
             : t.elevation! > 0.78
               ? "highland"
-              : t.moisture! < 0.3 && t.temperature! > 0.55
+              : t.degradation === 1 ||
+                  (t.moisture! < 0.3 && t.temperature! > 0.55)
                 ? "arid"
                 : t.moisture! > 0.78 && t.elevation! < 0.3
                   ? "wetland"
                   : t.t === 3
                     ? "forest"
                     : "plain";
-    if(t.irrigated && t.t!==0) {t.biome='plain';t.fertility=Math.max(t.fertility,.78);}
+    if (t.irrigated && t.t !== 0) {
+      t.biome = "plain";
+      t.fertility = Math.max(t.fertility, 0.78);
+    }
     if (newTerrain && t.t !== 0 && t.t !== 5 && !t.lake) {
       if (t.elevation! > 0.76 && smooth(w.seed + 431, x, y, 8) > 0.42) t.t = 4;
       else if (t.t === 4) t.t = t.moisture! > 0.55 ? 3 : 2;
@@ -211,6 +215,22 @@ export function buildGeography(w: World, newTerrain = false) {
 }
 export const isWater = (t: Tile) =>
   t.t === 0 || !!t.lake || (t.river || 0) > 0.7;
+export function grade(w: World, from: number, to: number) {
+  return Math.abs(
+    (w.tiles[from].elevation ?? 0) - (w.tiles[to].elevation ?? 0),
+  );
+}
+
+export function buildableHighland(w: World, i: number) {
+  const t = w.tiles[i];
+  return (
+    t.t === 4 &&
+    !isWater(t) &&
+    adjacent(w, i).filter((j) => !isWater(w.tiles[j]) && grade(w, i, j) <= 0.12)
+      .length >= 2
+  );
+}
+
 export const crossingCost = (t: Tile) =>
   t.t === 4
     ? t.tunnel

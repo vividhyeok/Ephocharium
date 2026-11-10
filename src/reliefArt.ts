@@ -31,7 +31,7 @@ export function drawRelief(ctx: CanvasRenderingContext2D, w: World) {
         return {
           x: Math.min(w.width * 8 - 8, col * 24 + 12),
           y: mid * 8 + 6,
-          h: 12 + Math.min(15, elevation * 12) + (col % 2) * 4,
+          h: 12 + Math.max(0, elevation - .65) * 70,
         };
       });
     if (!peaks.length) continue;

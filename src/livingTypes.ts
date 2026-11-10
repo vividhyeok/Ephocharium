@@ -51,6 +51,7 @@ export type CityRole =
   | "research"
   | "junction";
 export interface CityData {
+  outageUntil?: number;
   operation?: number;
   neglect?: number;
   lifecycle?: "active" | "declining" | "ruin" | "recovering";
@@ -112,6 +113,7 @@ export interface TransportRoute {
   built: number;
 }
 export interface Vehicle {
+  fittedEra?: number;
   targetTile?: number;
   id: number;
   route: number;
@@ -154,7 +156,7 @@ export interface LivingState {
     nation: number;
     city: number;
     tile: number;
-    kind: "reclamation" | "irrigation";
+    kind: "reclamation" | "irrigation" | "forestry";
     started: number;
     progress: number;
     duration: number;

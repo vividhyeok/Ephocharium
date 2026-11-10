@@ -320,6 +320,7 @@ export function analyzeWorld(
           .slice(0, 12),
       }
     : null;
+  const strategic = /사이버|해킹|미사일|요격|타격/;
   const diplomatic = /전쟁|휴전|평화|동맹|외교|조공|약탈|종속/.test(question);
   const topic = /정책|개혁|연구|발전/.test(question)
     ? /정책|개혁|연구|발전|시대/
@@ -331,7 +332,9 @@ export function analyzeWorld(
     nations: [e.a, e.b],
     text: `${{ war: "전쟁", peace: "휴전", alliance: "동맹", break: "동맹 파기", raid: "약탈", subjugation: "종속", independence: "독립", support: "지원" }[e.kind]}: ${w.nations[e.a - 1]?.name} · ${w.nations[e.b - 1]?.name} · ${e.reason}`,
   }));
-  const sources = diplomatic ? diplomaticEvents : w.history;
+  const strategicEvents = w.history.filter((e) => strategic.test(e.text));
+  const sources = strategic.test(question) ? strategicEvents
+    : diplomatic ? [...diplomaticEvents, ...strategicEvents] : w.history;
   const events = [...sources]
     .filter(
       (e) =>

@@ -362,14 +362,54 @@ export default function MapView(props: Props) {
           4,
         );
       }
+      for (const m of w.missiles || []) {
+        const x = (m.from % w.width) * 8 + 4;
+        const y = Math.floor(m.from / w.width) * 8 + 4;
+        const dx = (m.target % w.width) * 8 + 4 - x;
+        const dy = Math.floor(m.target / w.width) * 8 + 4 - y;
+        const progress = Math.min(
+          1,
+          (w.year -
+            m.launched +
+            (latest.current.paused
+              ? 0.25
+              : Math.min(
+                  0.95,
+                  ((performance.now() - snapshotTime) * latest.current.speed) /
+                    4000,
+                ))) /
+            (m.arrives - m.launched),
+        );
+        const height = Math.min(76, Math.hypot(dx, dy) * 0.28);
+        const tipX = x + dx * progress;
+        const tipY = y + dy * progress - height * 4 * progress * (1 - progress);
+        ctx.strokeStyle = "#ffd9a68c";
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(
+          x + (dx * progress) / 2,
+          y + (dy / 2 - 2 * height) * progress,
+          tipX,
+          tipY,
+        );
+        ctx.stroke();
+        ctx.fillStyle = "#fff0c6";
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
       for (const e of w.effects) {
         const x = (e.tile % w.width) * 8 + 4,
           y = Math.floor(e.tile / w.width) * 8 + 4;
-        ctx.strokeStyle = e.kind === "flood" ? "#9ce5f4" : "#ffb861";
+        ctx.strokeStyle = ["flood", "cyber", "intercept"].includes(e.kind)
+          ? "#9ce5f4"
+          : "#ffb861";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(x, y, 5 + Math.sin(time * 4) * 3, 0, Math.PI * 2);
         ctx.stroke();
+        if (e.kind === "cyber" || e.kind === "intercept") continue;
         for (let i = 0; i < 5; i++) {
           ctx.fillStyle = i % 2 ? "#f5c15c" : "#e37743";
           ctx.fillRect(
@@ -456,8 +496,8 @@ export default function MapView(props: Props) {
                 : "") +
             (n.culture?.baseName ||
               n.name.replace(/ 왕국| 연방| 상업 연맹| 성도국/g, "")) +
-            (" · " + ERAS[eraOf(n)].name) +
-            "";
+            " · " +
+            ERAS[eraOf(n)].name;
           const tw = ctx.measureText(label).width;
           if (x + tw < 0 || x - tw > width || y < 0 || y > height) continue;
           if (

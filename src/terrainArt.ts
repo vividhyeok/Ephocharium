@@ -25,7 +25,11 @@ export function drawTerrain(
     ctx.fillStyle =
       t.t === 0
         ? water[Math.min(4, Math.floor(Math.max(0, -(t.elevation || 0)) * 9))]
-        : colors[t.t];
+        : t.t === 1 && t.biome === "arid"
+          ? "#d1af79"
+          : t.t === 3 && (t.wood || 0) < 8
+            ? colors[2]
+            : colors[t.t];
     ctx.fillRect(x, y, 8, 8);
     if (t.t === 4 || ((t.elevation || 0) > 0.65 && t.t !== 0)) {
       const west = w.tiles[i - 1]?.elevation || 0,
@@ -35,18 +39,19 @@ export function drawTerrain(
         slope > 0 ? `rgba(40,64,57,${slope})` : `rgba(242,239,215,${-slope})`;
       ctx.fillRect(x, y, 8, 8);
     }
-    if (t.t === 3 && (t.wood || 0) > 4 && detail > 0 && i % 3 === 0) {
+    if (t.t === 3 && (t.wood || 0) > 8 && detail > 0 && i % 3 === 0) {
+      const canopy = Math.min(1, 0.5 + (t.wood || 0) / 110);
       ctx.fillStyle = "#547a6460";
       ctx.beginPath();
-      ctx.ellipse(x + 4, y + 5, 5.5, 3, 0, 0, 7);
+      ctx.ellipse(x + 4, y + 5, 5.5 * canopy, 3 * canopy, 0, 0, 7);
       ctx.fill();
       ctx.fillStyle = "#6e9073";
       ctx.beginPath();
-      ctx.ellipse(x + 3, y + 2, 3.8, 3.4, 0, 0, 7);
+      ctx.ellipse(x + 3, y + 2, 3.8 * canopy, 3.4 * canopy, 0, 0, 7);
       ctx.fill();
       ctx.fillStyle = "#8ba181";
       ctx.beginPath();
-      ctx.ellipse(x + 2, y + 1, 2.8, 2, 0, 0, 7);
+      ctx.ellipse(x + 2, y + 1, 2.8 * canopy, 2 * canopy, 0, 0, 7);
       ctx.fill();
     }
     if (t.damage > 0.05) {

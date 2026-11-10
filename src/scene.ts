@@ -254,6 +254,12 @@ export function drawInfrastructure(
         c.urban?.builtEra ?? 13,
       ),
       p = coordinates(w, c.tile);
+    if (w.tiles[c.tile].t === 4) {
+      ctx.fillStyle = "#67786b";
+      ctx.fillRect(p.x - 8, p.y + 2, 16, 5);
+      ctx.fillStyle = "#bfb69a";
+      ctx.fillRect(p.x - 8, p.y + 1, 16, 2);
+    }
     if (c.urban?.lifecycle === "ruin") {
       ctx.fillStyle = "#7c827270";
       ctx.fillRect(p.x - 8, p.y - 5, 16, 12);
@@ -290,7 +296,7 @@ export function drawInfrastructure(
         ty < 0 ||
         ty >= w.height ||
         w.tiles[i].owner !== n.id ||
-        w.tiles[i].t === 4 ||
+        (w.tiles[i].t === 4 && i !== c.tile) ||
         w.tiles[i].lake
       )
         continue;

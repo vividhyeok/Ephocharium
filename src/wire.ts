@@ -13,6 +13,9 @@ export const DYNAMIC_TILE_FIELDS = [
   "tunnel",
   "deposits",
   "mine",
+  "biome",
+  "baseFertility",
+  "degradation",
 ] as const;
 export type TilePatch = { index: number; values: unknown[] };
 export const tileStamp = (t: Tile) =>
@@ -29,6 +32,9 @@ export const tileStamp = (t: Tile) =>
     +!!t.bridge,
     +!!t.tunnel,
     t.mine,
+    t.biome,
+    t.baseFertility,
+    t.degradation,
     ...Object.entries(t.deposits || {}).flat(),
   ].join("|");
 export function patchWorld(

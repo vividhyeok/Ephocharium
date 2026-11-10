@@ -1,8 +1,9 @@
+import { fleetEra, fleetProfile } from "./fleet";
 import { policySupport } from "./strategy";
 import { settleExpedition } from './frontier';
 import { record, type World } from "./engine";
 import { eraOf } from "./eras";
-import { adjacent, isWater, crossingCost, MinHeap } from "./geography";
+import { adjacent, isWater, crossingCost, grade, MinHeap } from "./geography";
 import { consumeNation, stockNation } from "./resources";
 import {
   MATERIALS,
@@ -75,7 +76,8 @@ export function transportPath(
         v +
         (water
           ? 1
-          : crossingCost(t) / (1 + (t.road || 0) * 0.5 + (t.rail || 0)));
+          : (crossingCost(t) + (t.tunnel ? 0 : grade(w, i, j) * 5)) /
+            (1 + (t.road || 0) * 0.5 + (t.rail || 0)));
       if (next < (cost.get(j) ?? Infinity)) {
         cost.set(j, next);
         parents.set(j, i);
@@ -327,11 +329,16 @@ function vehicle(
   from: Settlement,
   to: Settlement,
   purpose: Vehicle["purpose"] = "trade",
+  fittedEra = fleetEra(
+    w.nations[from.nation - 1],
+    w.life?.polities.find((p) => p.nation === from.nation)?.energy || 0,
+  ),
 ): Vehicle {
   const reversed = r.from !== from.id,
     path = reversed ? [...r.path].reverse() : [...r.path];
   return {
     id: w.living!.nextId++,
+    fittedEra,
     route: r.id,
     mode: r.mode,
     nation: from.nation,
@@ -347,6 +354,8 @@ function vehicle(
     returning: false,
   };
 }
+const offline = (city: Settlement, year: number) => (city.urban?.outageUntil ?? 0) > year;
+
 export function transportYear(w: World) {
   const s = w.living!,
     cities = new Map(w.life!.settlements.filter(c=>c.urban).map((c) => [c.id, c]));
@@ -383,7 +392,7 @@ export function transportYear(w: World) {
             r.path[Math.floor(r.path.length / 2)],
           ) < 4,
       );
-    if (r.blocked) continue;
+    if (r.blocked || offline(a, w.year) || offline(b, w.year)) continue;
     a.urban.logistics = Math.min(1, a.urban.logistics + 0.22);
     b.urban.logistics = Math.min(1, b.urban.logistics + 0.22);
     if (
@@ -410,14 +419,15 @@ export function transportYear(w: World) {
     const n = w.nations[source.from.nation - 1];
     if (n.wealth < 1) continue;
     if (r.mode === "air" && !consumeNation(w, n, "oil", 0.1)) continue;
+    const fitted = fleetEra(n, w.life!.polities.find((p) => p.nation === n.id)?.energy || 0);
     const amount = Math.min(
-      r.capacity,
+      r.capacity * fleetProfile(r.mode, fitted).cargo,
       source.excess,
       source.gap * (source.key === "food" ? 50 : 1) * 0.25,
     );
     if (amount < 0.1) continue;
     source.from.urban!.stock[source.key] -= amount;
-    const v = vehicle(w, r, source.from, source.to);
+    const v = vehicle(w, r, source.from, source.to, "trade", fitted);
     v.cargo[source.key] = amount;
     s.vehicles.push(v);
     n.wealth -= r.mode === "air" ? 1 : 0.1;
@@ -469,15 +479,12 @@ export function transportYear(w: World) {
       continue;
     }
     v.previousProgress = v.progress;
-    const e = eraOf(w.nations[v.nation - 1]),
-      speed =
-        v.mode === "air"
-          ? 10
-          : v.mode === "rail"
-            ? 3 + e * 0.15
-            : v.mode === "sea" || v.mode === "river"
-              ? 1.4 + e * 0.15
-              : 1 + (e >= 7 ? 1 : 0);
+    if (v.purpose === "trade" && (offline(a, w.year) || offline(b, w.year))) continue;
+    const speed = fleetProfile(
+      v.mode,
+      v.fittedEra ?? eraOf(w.nations[v.nation - 1]),
+      v.purpose === "escort" || v.purpose === "landing",
+    ).speed;
     v.progress += speed;
     const span =
       v.mode === "air"

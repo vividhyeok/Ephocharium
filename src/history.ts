@@ -19,7 +19,7 @@ export interface Atlas {
 export function enrichEvent(w: World, e: History, trackEra = true) {
   if(w.archive)for(const id of e.nations){const entry=w.archive.nations[id];if(!entry)continue;if(/멸망/.test(e.text))entry.falls++;if(trackEra&&/진입/.test(e.text))entry.eraCounts[eraOf(w.nations[id-1])]++;}
   e.id = ++w.historySequence!;
-  e.importance = /建国|건국|멸망|전쟁 발발|진입했습니다|행정 위기|독립/.test(
+  e.importance = /建国|건국|멸망|전쟁 발발|진입했습니다|행정 위기|독립|미사일이|사이버 공격|사막화|산악 광산/.test(
     e.text,
   )
     ? "major"

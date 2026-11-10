@@ -5,6 +5,8 @@ import type { Nation, World } from "./engine";
 import { eraOf, ERAS } from "./eras";
 import { CULTURES, FAITHS } from "./culture";
 import { MATERIALS, MATERIAL_NAMES } from "./livingTypes";
+import { fleetProfile } from "./fleet";
+import { projectNames } from "./frontier";
 import { developmentGate } from "./progression";
 import { skylineSvg } from "./art";
 import Icon from "./Icons";
@@ -76,6 +78,12 @@ export default function NationPanel({
       (w.life?.flights.filter((f) => f.nation === n.id).length || 0) +
       (w.living?.vehicles.filter((v) => v.nation === n.id && v.mode === "air")
         .length || 0);
+  const shipments = new Map<string, number>();
+  for (const v of w.living?.vehicles || []) {
+    if (v.nation !== n.id || v.purpose !== "trade") continue;
+    const { name } = fleetProfile(v.mode, v.fittedEra ?? e);
+    shipments.set(name, (shipments.get(name) || 0) + 1);
+  }
   const scene = skylineSvg({
     era: Math.min(e, Math.floor(primary?.development ?? e), u?.builtEra ?? e),
     culture: shape.style,
@@ -191,9 +199,21 @@ export default function NationPanel({
           .filter((p) => p.nation === n.id && p.status === "building")
           .map((p) => (
             <button key={p.id} onClick={() => onFocus(p.tile)}>
-              {p.kind === "reclamation" ? "해안 간척" : "사막 관개"} 공사 ·{" "}
+              {projectNames[p.kind]} ·{" "}
               {Math.round((p.progress / p.duration) * 100)}%
               <progress value={p.progress} max={p.duration} />
+            </button>
+          ))}
+        {[...shipments].slice(0, 4).map(([name, count]) => (
+          <small key={name}>
+            {name} {count}대 운송 중
+          </small>
+        ))}
+        {cities
+          .filter((c) => (c.urban?.outageUntil ?? 0) > w.year)
+          .map((c) => (
+            <button key={c.id} onClick={() => onFocus(c.tile)}>
+              {c.name} · 교역망 마비 ({c.urban!.outageUntil! - w.year}년 남음)
             </button>
           ))}
         <small>

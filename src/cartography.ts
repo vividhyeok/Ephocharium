@@ -102,6 +102,10 @@ export function upgradeWorld(w: World) {
   for (const e of w.history)
     if (e.tile !== undefined) e.tile = tileIndex(e.tile);
   for (const e of w.effects) e.tile = tileIndex(e.tile);
+  for (const m of w.missiles || []) {
+    m.from = tileIndex(m.from);
+    m.target = tileIndex(m.target);
+  }
   for (const s of w.settlers) s.tile = tileIndex(s.tile);
   if (w.life) {
     for (const c of w.life.settlements) c.tile = tileIndex(c.tile);

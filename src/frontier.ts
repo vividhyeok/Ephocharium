@@ -51,6 +51,12 @@ export function settleExpedition(w: World, v: Vehicle) {
   return true;
 }
 
+export const projectNames = {
+  reclamation: "해안 간척",
+  irrigation: "사막 관개",
+  forestry: "조림",
+};
+
 export function frontierYear(w: World) {
   const s = w.living!;
   s.projects ??= [];
@@ -73,6 +79,20 @@ export function frontierYear(w: World) {
     p.progress++;
     if (p.progress < p.duration) continue;
     p.status = "complete";
+    if (p.kind === "forestry") {
+      t.t = 3;
+      t.biome = "forest";
+      t.wood = 12;
+      delete t.degradation;
+      record(
+        w,
+        n.name + "이 벌목지를 복구하기 위해 묘목을 심었습니다",
+        [n.id],
+        p.tile,
+      );
+      continue;
+    }
+    delete t.degradation;
     t.t = 2;
     t.owner = p.nation;
     t.lake = false;
@@ -146,9 +166,47 @@ export function frontierYear(w: World) {
                     !w.tiles[j].reclaimed,
                 ).length >= 2)),
         );
+      const forestry =
+        c.urban!.stock.timber < 12 && c.urban!.stock.food > c.population * 0.35
+          ? w.tiles.findIndex(
+              (t, i) =>
+                t.owner === n.id &&
+                !isWater(t) &&
+                (t.t === 2 || (t.t === 3 && (t.wood || 0) < 8)) &&
+                (t.moisture ?? 0) >= 0.55 &&
+                !t.irrigated &&
+                !w.life!.settlements.some((city) => city.tile === i) &&
+                (t.t === 3 || t.fertility < 0.56),
+            )
+          : -1;
+      if (forestry >= 0) {
+        n.wealth -= 25;
+        s.projects.push({
+          id: s.nextId++,
+          nation: n.id,
+          city: c.id,
+          tile: forestry,
+          kind: "forestry",
+          started: w.year,
+          progress: 0,
+          duration: 10,
+          status: "building",
+        });
+        record(
+          w,
+          n.name + "이 목재 부족에 대비해 조림을 시작했습니다",
+          [n.id],
+          forestry,
+        );
+      }
       const target =
         candidates[(w.year / 48 + n.id) % Math.max(1, candidates.length)];
-      if (target && c.urban!.stock.stone >= 12 && c.urban!.stock.timber >= 8) {
+      if (
+        forestry < 0 &&
+        target &&
+        c.urban!.stock.stone >= 12 &&
+        c.urban!.stock.timber >= 8
+      ) {
         c.urban!.stock.stone -= 12;
         c.urban!.stock.timber -= 8;
         n.wealth -= 60;

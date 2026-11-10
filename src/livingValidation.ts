@@ -71,7 +71,8 @@ export function validateLiving(w: World) {
     !w.life?.settlements.every(
       (c) =>
         !c.urban ||
-        (stock(c.urban.stock) &&
+        ((c.urban.outageUntil === undefined || n(c.urban.outageUntil)) &&
+          stock(c.urban.stock) &&
           cohorts(c.urban.cohorts) &&
           c.urban.roles.length <= 8 &&
           c.urban.roles.every((r) =>
@@ -121,6 +122,8 @@ export function validateLiving(w: World) {
     !s.vehicles.every(
       (v) =>
         (v.targetTile === undefined || tile(v.targetTile)) &&
+        (v.fittedEra === undefined ||
+          (Number.isInteger(v.fittedEra) && n(v.fittedEra, 0, 14))) &&
         n(v.id) &&
         id(v.nation) &&
         id(v.targetNation) &&
@@ -157,7 +160,7 @@ export function validateLiving(w: World) {
           n(p.started) &&
           n(p.progress) &&
           n(p.duration, 1, 1000) &&
-          ["reclamation", "irrigation"].includes(p.kind) &&
+          ["reclamation", "irrigation", "forestry"].includes(p.kind) &&
           ["building", "complete", "abandoned"].includes(p.status),
       ))
   )

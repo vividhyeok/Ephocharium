@@ -4,7 +4,7 @@ import {
   enterNeutral,
   navalSupplyOpen,
 } from "./campaigns";
-import { isWater } from "./geography";
+import { buildableHighland, isWater } from "./geography";
 import { culturalName } from "./culture";
 import { supplyFactor, populationLoss } from "./militaryLogistics";
 import type { CityData } from "./livingTypes";
@@ -424,6 +424,19 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     const far = considerExpansion
       ? cells.reduce(
           (best, i) => {
+            const tile = w.tiles[i];
+            if (
+              isWater(tile) ||
+              tile.t === 5 ||
+              (tile.t === 4 &&
+                (era < 7 ||
+                  n.wealth < 130 ||
+                  !buildableHighland(w, i) ||
+                  !Object.values(tile.deposits || {}).some(
+                    (amount) => amount >= 30,
+                  )))
+            )
+              return best;
             const d = Math.min(...cities.map((c) => distance(w, i, c.tile)));
             return d > best.d ? { tile: i, d } : best;
           },
@@ -450,9 +463,15 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
       };
       cities.push(c);
       s.settlements.push(c);
-      n.wealth -= 40;
+      const highland = w.tiles[c.tile].t === 4;
+      n.wealth -= highland ? 90 : 40;
       polity.wood -= 8;
-      record(w, c.name + " 정착지 건설", [n.id], c.tile);
+      record(
+        w,
+        c.name + (highland ? " 산악 광산 정착지 건설" : " 정착지 건설"),
+        [n.id],
+        c.tile,
+      );
     }
     const airports: Settlement[] = [];
     for (const c of cities) {
@@ -502,6 +521,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
       if (c.homes > desiredHomes) c.homes = desiredHomes;
       c.airport =
         era >= 9 &&
+        w.tiles[c.tile].t !== 4 &&
         c.population >= 60 &&
         n.wealth > 100 &&
         c.development >= 9 &&
@@ -642,10 +662,15 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     if (now && u.route.length && eraOf(n) >= 1 && u.role === "merchant")
       now.road = Math.min(1, (now.road || 0) + 0.12);
   }
-  // Woodland regrows slowly; mineral reserves are finite.
   for (const t of w.tiles)
-    if (t.t === 3)
-      t.wood = Math.min(110, (t.wood || 0) + 0.025 * (1 - t.damage));
+    if (t.t === 3) {
+      const growth =
+        (t.moisture ?? 0.5) *
+        0.55 *
+        (1 - t.damage) *
+        (1 - (t.degradation || 0));
+      t.wood = Math.min(110, (t.wood || 0) + growth);
+    }
   updateArmies(w, contexts);
   updateFlights(w);
   s.polities = s.polities.filter((p) => w.nations[p.nation - 1]?.alive);

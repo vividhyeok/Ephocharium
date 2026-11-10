@@ -129,6 +129,7 @@ export function drawTransport(
 ) {
   const s = w.living;
   if (!s) return;
+  const matrix = ctx.getTransform();
   for (const v of s.vehicles) {
     if (v.path.length < 2) continue;
     let step = v.previousProgress + (v.progress - v.previousProgress) * alpha;
@@ -155,7 +156,6 @@ export function drawTransport(
           (Math.floor(q / w.width) - Math.floor(p / w.width)) * f) *
           8 +
         4;
-    const matrix = ctx.getTransform();
     if (
       x * matrix.a + matrix.e < -60 ||
       x * matrix.a + matrix.e > ctx.canvas.width + 60 ||
@@ -163,7 +163,7 @@ export function drawTransport(
       y * matrix.d + matrix.f > ctx.canvas.height + 60
     )
       continue;
-    const e = eraOf(w.nations[v.nation - 1]),
+    const e = v.fittedEra ?? eraOf(w.nations[v.nation - 1]),
       color = w.nations[v.nation - 1].color;
     ctx.save();
     ctx.translate(x, y);
@@ -183,15 +183,55 @@ export function drawTransport(
       if (e < 9) {
         ctx.fillStyle = "#b1ad8a";
         ctx.fillRect(4, -7, 2, 4);
+      } else {
+        ctx.strokeStyle = "#c8c5a0";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(1, -3);
+        ctx.lineTo(-1, -6);
+        ctx.lineTo(3, -6);
+        ctx.stroke();
+        if (e >= 11) {
+          ctx.fillStyle = color;
+          ctx.fillRect(-12, -2, 5, 4);
+        }
       }
     } else if (v.mode === "air") {
+      if (e >= 11) {
+        ctx.fillStyle = e >= 12 ? "#c4d7e0" : "#abc8af";
+        ctx.beginPath();
+        ctx.moveTo(8, 0);
+        ctx.lineTo(-5, -6);
+        ctx.lineTo(-3, 0);
+        ctx.lineTo(-5, 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = color;
+        ctx.fillRect(-4, -1, 3, 2);
+        ctx.restore();
+        continue;
+      }
       ctx.fillStyle = "#e1dfbc";
       ctx.fillRect(-6, -1, 13, 2);
       ctx.fillRect(0, -6, 2, 12);
       ctx.fillRect(-4, -3, 1, 6);
       ctx.fillStyle = color;
       ctx.fillRect(-6, -1, 2, 2);
-    } else if (v.purpose === "migration" || e < 7) {
+    } else if (e >= 11) {
+      ctx.fillStyle = "#b7d4c3";
+      ctx.fillRect(-6, -3, 13, 6);
+      ctx.fillStyle = color;
+      ctx.fillRect(-5, -2, 7, 4);
+      ctx.fillStyle = "#517980";
+      ctx.fillRect(3, -2, 3, 4);
+    } else if (e < 3) {
+      ctx.fillStyle = color;
+      ctx.fillRect(-2, -2, 3, 5);
+      ctx.fillStyle = "#d8c092";
+      ctx.fillRect(-2, -5, 3, 3);
+      ctx.fillStyle = "#8b7355";
+      ctx.fillRect(-4, -3, 2, 4);
+    } else if (e < 7) {
       ctx.fillStyle = color;
       ctx.fillRect(-2, -2, 3, 5);
       ctx.fillStyle = "#d8c092";
