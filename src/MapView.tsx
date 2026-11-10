@@ -287,7 +287,7 @@ export default function MapView(props: Props) {
         dims = key;
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#397b87";
+      ctx.fillStyle = "#306372";
       ctx.fillRect(0, 0, width, height);
       ctx.save();
       ctx.translate(c.x, c.y);

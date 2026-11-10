@@ -1,3 +1,4 @@
+import { oceanicTerrain } from "./oceanicTerrain";
 import {
   seedHumanity,
   launchSettlers,
@@ -184,6 +185,7 @@ export interface World {
   life?: LifeState;
 }
 export interface Options {
+  layout?: "oceanic" | "classic";
   developmentSpeed?: "relaxed" | "standard" | "fast";
   seed: number;
   size: number;
@@ -317,6 +319,10 @@ export function generate(o: Options): World {
     }),
   );
   const phase = random(w) * 10;
+  const oceanic =
+    o.layout === "oceanic"
+      ? oceanicTerrain(w.seed, w.width, w.height, o.sea, o.preset === "islands")
+      : null;
   for (let y = 0; y < w.height; y++)
     for (let x = 0; x < w.width; x++) {
       const nx = x / w.width,
@@ -328,7 +334,8 @@ export function generate(o: Options): World {
         Math.sin(nx * 31 + Math.sin(ny * 23) + phase) * 0.065 +
         Math.cos(ny * 39 + nx * 15) * 0.045;
       h -= Math.max(0, 0.14 - Math.min(nx, 1 - nx, ny, 1 - ny)) * 13;
-      const coast = (o.sea - 0.45) * 0.7;
+      const coast = oceanic ? 0 : (o.sea - 0.45) * 0.7;
+      if (oceanic) h = oceanic[y * w.width + x];
       const r = random(w);
       let t: Terrain =
         x < 2 || y < 2 || x >= w.width - 2 || y >= w.height - 2 || h < coast

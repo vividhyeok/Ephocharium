@@ -138,9 +138,13 @@ export function frontierYear(w: World) {
                 i % w.width < w.width - 4 &&
                 Math.floor(i / w.width) > 3 &&
                 Math.floor(i / w.width) < w.height - 4 &&
-                adjacent(w, i).some(
-                  (j) => w.tiles[j].owner === n.id && !isWater(w.tiles[j]),
-                ))),
+                (t.elevation ?? 0) > -0.14 &&
+                adjacent(w, i).filter(
+                  (j) =>
+                    w.tiles[j].owner === n.id &&
+                    !isWater(w.tiles[j]) &&
+                    !w.tiles[j].reclaimed,
+                ).length >= 2)),
         );
       const target =
         candidates[(w.year / 48 + n.id) % Math.max(1, candidates.length)];

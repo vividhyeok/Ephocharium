@@ -17,11 +17,15 @@ export function drawTerrain(
     "#dde3d8",
   ];
   const bloc = politicalColors(w);
+  const water = ["#55929b", "#4a8491", "#407784", "#376b79", "#306372"];
   for (let i = 0; i < w.tiles.length; i++) {
     const t = w.tiles[i],
       x = (i % w.width) * 8,
       y = Math.floor(i / w.width) * 8;
-    ctx.fillStyle = colors[t.t];
+    ctx.fillStyle =
+      t.t === 0
+        ? water[Math.min(4, Math.floor(Math.max(0, -(t.elevation || 0)) * 9))]
+        : colors[t.t];
     ctx.fillRect(x, y, 8, 8);
     if (t.t === 4 || ((t.elevation || 0) > 0.65 && t.t !== 0)) {
       const west = w.tiles[i - 1]?.elevation || 0,

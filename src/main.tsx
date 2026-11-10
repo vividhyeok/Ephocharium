@@ -70,7 +70,8 @@ const PRESETS: {
 const DEFAULT_WORLD: Options = {
   seed: 241026,
   size: 112,
-  sea: 0.45,
+  sea: 0.68,
+  layout: "oceanic",
   forest: 0.4,
   mountains: 0.07,
   preset: "dawn",
@@ -1153,11 +1154,30 @@ function App() {
                         }
                       />
                     </label>
+                    <label>
+                      대륙 배치
+                      <select
+                        value={options.layout || "oceanic"}
+                        onChange={(e) =>
+                          setOptions({
+                            ...options,
+                            layout: e.target.value as Options["layout"],
+                            sea: e.target.value === "classic" ? 0.45 : 0.68,
+                          })
+                        }
+                      >
+                        <option value="oceanic">대양과 여러 대륙</option>
+                        <option value="classic">기존 대륙 생성</option>
+                      </select>
+                    </label>
                     {(["sea", "forest", "mountains"] as const).map((k) => (
                       <label key={k}>
                         {
                           {
-                            sea: "바다 면적",
+                            sea:
+                              options.layout === "classic"
+                                ? "해수면 높이"
+                                : `목표 바다 면적 · ${Math.round(options.sea * 100)}%`,
                             forest: "숲의 밀도",
                             mountains: "산맥의 밀도",
                           }[k]
@@ -1166,7 +1186,7 @@ function App() {
                           type="range"
                           min="0.05"
                           max={k === "mountains" ? 0.35 : 0.85}
-                          step="0.05"
+                          step={k === "sea" ? 0.01 : 0.05}
                           value={options[k]}
                           onChange={(e) =>
                             setOptions({
