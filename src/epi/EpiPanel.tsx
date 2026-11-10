@@ -1,3 +1,4 @@
+import { knockoutAnswer } from "./knockout";
 import { readBaseline } from "../observationBaseline";
 import { useEffect, useRef, useState } from "react";
 import type { World } from "../engine";
@@ -97,6 +98,22 @@ export default function EpiPanel({
       id = crypto.randomUUID(),
       requestId = crypto.randomUUID(),
       previous = chatRef.current;
+    const result = knockoutAnswer(snapshot, q);
+    if (result !== null) {
+      setQuestion("");
+      follow.current = true;
+      setChat(
+        trimConversation({
+          ...previous,
+          messages: [
+            ...previous.messages,
+            { id: requestId, role: "user", content: q, year },
+            { id, role: "assistant", content: result, year, state: "done" },
+          ],
+        }),
+      );
+      return;
+    }
     const context = analyzeWorld(
       snapshot,
       q,

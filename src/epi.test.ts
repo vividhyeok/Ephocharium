@@ -1,3 +1,4 @@
+import { knockoutAnswer } from "./epi/knockout";
 import { it, expect } from "vitest";
 import { generate, step, validate } from "./engine";
 import { analyzeWorld } from "./epi/analysis";
@@ -430,4 +431,27 @@ it("returns at most two complete sentences when the provider gets cut off", () =
       false,
     ),
   ).not.toContain("네 번째");
+});
+
+it("repeatedly eliminates second place until exactly three remain, including countries outside the top five", () => {
+  const w = make();
+  const original = w.nations[0];
+  w.nations = Array.from({ length: 8 }, (_, i) => ({
+    ...original,
+    id: i + 1,
+    name: `국가 ${i + 1}`,
+    population: 1000 - i * 100,
+    alive: true,
+  }));
+  w.relations = [];
+  w.life!.armies = [];
+  const q =
+    "현재 국가들 중 국력이 가장 센 국가와 그 다음으로 센 국가가 붙는 식으로 최후의 세 국가만 남게 한다면 남을 국가는";
+  const answer = knockoutAnswer(w, q)!;
+  expect(answer.split("\n")[0]).toBe(
+    "남는 3개국: [국가 1](nation:1) · [국가 7](nation:7) · [국가 8](nation:8)",
+  );
+  expect(knockoutAnswer(w, "국력 1위와 2위 중 누가 이겨?")).toBeNull();
+  w.nations.slice(1).forEach((n) => (n.alive = false));
+  expect(knockoutAnswer(w, q)).toContain("대결은 없어요");
 });

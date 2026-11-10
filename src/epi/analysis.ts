@@ -28,14 +28,15 @@ export function getWorldOverview(w: World) {
     recordGap: !a || a.knownSince > 0,
   };
 }
-export function analyzeWorld(
-  w: World,
-  question: string,
-  selected = 0,
-  previous = "",
-): EpiContext {
+export function nationalScores(w: World) {
   const alive = w.nations.filter((n) => n.alive),
     military = new Map<number, number>();
+  const allies = new Map<number, number>();
+  for (const r of w.relations)
+    if (r.allied) {
+      allies.set(r.a, (allies.get(r.a) || 0) + 1);
+      allies.set(r.b, (allies.get(r.b) || 0) + 1);
+    }
   for (const a of w.life?.armies || [])
     military.set(a.nation, (military.get(a.nation) || 0) + a.strength);
   const score = (n: Nation, m: (typeof metrics)[number]) =>
@@ -50,9 +51,7 @@ export function analyzeWorld(
             : m === "territory"
               ? n.territory
               : m === "alliances"
-                ? w.relations.filter(
-                    (r) => r.allied && (r.a === n.id || r.b === n.id),
-                  ).length
+                ? allies.get(n.id) || 0
                 : 0;
   const weights = [0.25, 0.15, 0.2, 0.2, 0.1, 0.1],
     parts = metrics.slice(1),
@@ -64,6 +63,15 @@ export function analyzeWorld(
         ((weights[k] * Math.log1p(score(n, m))) / Math.log1p(maxima[k])) * 100,
       0,
     );
+  return { alive, military, score, power };
+}
+export function analyzeWorld(
+  w: World,
+  question: string,
+  selected = 0,
+  previous = "",
+): EpiContext {
+  const { alive, military, score, power } = nationalScores(w);
   const rankings = Object.fromEntries(
     metrics.map((m) => [
       m,
