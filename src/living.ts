@@ -1,3 +1,4 @@
+import { policySupport } from "./strategy";
 import { prepareArchive } from "./archives";
 import { record, type World, type Nation } from "./engine";
 import { prepareLife, type Settlement } from "./civilization";
@@ -196,6 +197,11 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
     const e = eraOf(n),
       cities = w.life!.settlements.filter((c) => c.nation === n.id),
       war = w.relations.some((r) => r.war && (r.a === n.id || r.b === n.id));
+    const mobilized = w
+      .life!.armies.filter((a) => a.nation === n.id)
+      .reduce((s, a) => s + a.strength, 0);
+    const adults = cities.reduce((s, c) => s + (c.urban?.cohorts[1] || 0), 0);
+    const civilianShare = 1 - Math.min(0.75, mobilized / Math.max(1, adults));
     n.demography = emptyDemography();
     let weightedLife = 0,
       weightedFertility = 0,
@@ -206,7 +212,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
         z = context.get(c.id);
       if (!z) continue;
       const before = sum(u.cohorts),
-        labor = u.cohorts[1],
+        labor = u.cohorts[1] * civilianShare,
         t = w.tiles[c.tile],
         damage = Math.max(u.damage, t.damage);
       u.damage = damage;
@@ -252,6 +258,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
       const agriculture =
         z.farms *
         (4 + Math.sqrt(n.tech) * 1.6) *
+        (1 + policySupport(n, "agriculture")) *
         ERAS[e].food *
         Math.min(1, labor / Math.max(5, z.farms * 0.6)) *
         (0.6 + u.water * 0.4) *
@@ -418,6 +425,7 @@ export function urbanYear(w: World, owned: Map<number, number[]>) {
               ? (agriculture * damage) / (1 - damage)
               : z.farms *
                 (4 + Math.sqrt(n.tech) * 1.6) *
+                (1 + policySupport(n, "agriculture")) *
                 ERAS[e].food *
                 Math.min(1, labor / Math.max(5, z.farms * 0.6)) *
                 (0.6 + u.water * 0.4),

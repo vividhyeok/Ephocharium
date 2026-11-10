@@ -1,4 +1,11 @@
 import {
+  seedHumanity,
+  launchSettlers,
+  settleYear,
+  type Settler,
+} from "./settlement";
+import { nationalStrategy, validateStrategy, type Strategy } from "./strategy";
+import {
   archiveYear,
   prepareArchive,
   validateArchive,
@@ -80,6 +87,7 @@ export interface Tile {
   road?: number;
 }
 export interface Nation {
+  strategy?: Strategy;
   leaderTraits?: LeaderTraits;
   id: number;
   culture?: Culture;
@@ -90,6 +98,7 @@ export interface Nation {
   eraHistory?: { era: number; year: number }[];
   peakYear?: number;
   lastRevoltYear?: number;
+  lastMigrationYear?: number;
   foundedYear?: number;
   parentId?: number;
   originalName?: string;
@@ -123,6 +132,7 @@ export interface Relation {
   pastWars?: number;
   grievance?: number;
   pactYears?: number;
+  accessUntil?: number;
   subject?: number;
   subjectSince?: number;
   truceUntil?: number;
@@ -168,7 +178,7 @@ export interface World {
   nations: Nation[];
   relations: Relation[];
   history: History[];
-  settlers: { tile: number; population: number; progress: number }[];
+  settlers: Settler[];
   effects: Effect[];
   preset: Preset;
   life?: LifeState;
@@ -385,12 +395,7 @@ export function generate(o: Options): World {
       }
     }
   }
-  if (o.preset === "dawn" && candidates.length)
-    w.settlers.push({
-      tile: candidates[Math.floor(candidates.length / 2)],
-      population: 20,
-      progress: 0,
-    });
+  if (o.preset === "dawn") seedHumanity(w);
   prepareLife(w);
   ensureLiving(w);
   refreshLife(w);
@@ -423,13 +428,7 @@ export function step(w: World) {
   w.year++;
   w.renderRevision = (w.renderRevision || 0) + 1;
   w.effects = w.effects.filter((e) => --e.life > 0);
-  for (const s of [...w.settlers]) {
-    s.progress += w.tiles[s.tile].fertility;
-    if (s.progress >= 3) {
-      found(w, s.tile, s.population);
-      w.settlers.splice(w.settlers.indexOf(s), 1);
-    }
-  }
+  settleYear(w);
   prepareLife(w);
   const holdings = new Map<number, number[]>();
   w.tiles.forEach((t, i) => {
@@ -439,6 +438,8 @@ export function step(w: World) {
       holdings.get(t.owner)!.push(i);
     }
   });
+  for (const n of w.nations.filter((n) => n.alive))
+    nationalStrategy(w, n, holdings.get(n.id) || []);
   urbanYear(w, holdings);
   for (const n of w.nations.filter((n) => n.alive)) {
     const cells = holdings.get(n.id) || [];
@@ -510,7 +511,15 @@ export function step(w: World) {
       n.population > cells.length * 2 &&
       n.wealth > 50 + eraOf(n) * 30
     ) {
-      const i = frontier[Math.floor(random(w) * frontier.length)],
+      const candidates = frontier.filter((i) => !w.tiles[i].owner);
+      const score = (i: number) =>
+        w.tiles[i].fertility *
+          (n.strategy?.priority === "agriculture" ? 3 : 1) +
+        (n.strategy?.priority === "industry" ? w.tiles[i].ore : 0) -
+        w.tiles[i].damage;
+      const i = candidates.length
+          ? candidates.reduce((a, b) => (score(b) > score(a) ? b : a))
+          : frontier[0],
         t = w.tiles[i];
       if (!t.owner) {
         t.owner = n.id;
@@ -559,6 +568,7 @@ export function step(w: World) {
       if (n.samples.length > 150) n.samples.shift();
     }
   }
+  launchSettlers(w);
   updateDiplomacy(w);
   updateLife(w, holdings);
   frontierYear(w);
@@ -891,6 +901,7 @@ export function validate(data: unknown): data is World {
       (n, i) =>
         n &&
         n.id === i + 1 &&
+        validateStrategy(n) &&
         (n.foundedYear === undefined || finite(n.foundedYear)) &&
         (n.parentId === undefined || (id(n.parentId) && n.parentId !== n.id)) &&
         typeof n.name === "string" &&
@@ -935,20 +946,23 @@ export function validate(data: unknown): data is World {
         finite(r.since) &&
         (r.allied === undefined || typeof r.allied === "boolean") &&
         !(r.war && r.allied) &&
+        (r.accessUntil === undefined || finite(r.accessUntil)) &&
         (r.allianceSince === undefined || finite(r.allianceSince)) &&
         (r.aggressor === undefined ||
           r.aggressor === r.a ||
           r.aggressor === r.b) &&
         (r.reason === undefined ||
           (typeof r.reason === "string" && r.reason.length < 2000)) &&
-        (r.subject === undefined || ((r.subject === r.a || r.subject === r.b) && !r.war && !r.allied)) &&
+        (r.subject === undefined ||
+          ((r.subject === r.a || r.subject === r.b) && !r.war && !r.allied)) &&
         (r.subjectSince === undefined || finite(r.subjectSince)) &&
         (r.truceUntil === undefined || finite(r.truceUntil)) &&
         (r.lastRaidYear === undefined || finite(r.lastRaidYear)) &&
         (r.warStartTerritory === undefined || finite(r.warStartTerritory)) &&
         (r.expedition === undefined ||
           ((r.expedition.invader === r.a || r.expedition.invader === r.b) &&
-           finite(r.expedition.arrives) && finite(r.expedition.strength))),
+            finite(r.expedition.arrives) &&
+            finite(r.expedition.strength))),
     ) &&
     Array.isArray(w.history) &&
     w.history.length <= 1200 &&
@@ -965,7 +979,21 @@ export function validate(data: unknown): data is World {
     Array.isArray(w.settlers) &&
     w.settlers.length < 100000 &&
     w.settlers.every(
-      (s) => s && tile(s.tile) && finite(s.population) && finite(s.progress),
+      (s) =>
+        s &&
+        tile(s.tile) &&
+        finite(s.population) &&
+        finite(s.progress) &&
+        (s.parentId === undefined || id(s.parentId)) &&
+        (s.food === undefined || finite(s.food)) &&
+        (s.route === undefined ||
+          (Array.isArray(s.route) &&
+            s.route.length <= 900 &&
+            s.route.every(tile))) &&
+        (s.cohorts === undefined ||
+          (Array.isArray(s.cohorts) &&
+            s.cohorts.length === 3 &&
+            s.cohorts.every((x) => finite(x)))),
     ) &&
     Array.isArray(w.effects) &&
     w.effects.length < 100000 &&

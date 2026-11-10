@@ -19,13 +19,11 @@ test("장기 관측의 시대별 요약과 과거 영토 비교 지도를 펼쳐
   await page.goto("/");
   await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "history.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(w)),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "history.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(w)),
+  });
   await page.getByRole("button", { name: "역사", exact: true }).click();
   await page.getByText("시대별 문명 변화 요약", { exact: true }).click();
   await expect(page.locator(".history-overview")).toContainText("첫 관측");
@@ -53,6 +51,7 @@ test("지형 브러시 한 번의 드래그를 통째로 취소하고 세계 파
     return result;
   };
   const before = await snapshot();
+  await page.getByRole("button", { name: "실험 모드", exact: true }).click();
   await page.getByRole("button", { name: "지형", exact: true }).click();
   await page.getByRole("button", { name: "산맥", exact: true }).click();
   const box = (await page.getByLabel("문명 세계 지도").boundingBox())!;
@@ -126,13 +125,14 @@ test("20배속 연도 진행·지정 외교·한 단계 복원·사건 표시량
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(w)),
   });
+  await page.getByRole("button", { name: "실험 모드", exact: true }).click();
   await page.getByRole("button", { name: "문명", exact: true }).click();
   await page.getByRole("button", { name: "전쟁", exact: true }).click();
   await page.getByLabel("개입 대상 국가").selectOption("1");
   await page.getByLabel("개입 상대 국가").selectOption("3");
   await page.getByRole("button", { name: "지정한 두 국가에 적용" }).click();
   await expect(page.locator(".diplomacy-summary")).toContainText("전쟁 1");
-  await expect(page.locator(".toast")).toContainText("접경이 없어");
+  await expect(page.locator(".toast")).toContainText("원정 경로");
   await page.getByRole("button", { name: "개입 실행 취소" }).click();
   await expect(page.locator(".diplomacy-summary")).toContainText("전쟁 0");
   await page.keyboard.press("Escape");
@@ -163,7 +163,9 @@ test("14개 시대의 픽셀 건축이 실제 렌더러와 게임 화면에 표�
     const x = i % w.width,
       y = Math.floor(i / w.width);
     w.tiles[i].t = x < 2 || x >= 110 || y < 2 || y >= w.height - 2 ? 0 : 2;
-    w.tiles[i].lake=false; w.tiles[i].river=0; w.tiles[i].wood = 50;
+    w.tiles[i].lake = false;
+    w.tiles[i].river = 0;
+    w.tiles[i].wood = 50;
     w.tiles[i].mineral = 100;
   }
   for (let k = 0; k < 14; k++) {
@@ -185,7 +187,7 @@ test("14개 시대의 픽셀 건축이 실제 렌더러와 게임 화면에 표�
   for (const c of w.life!.settlements) {
     c.development = 13;
     c.homes = 12;
-    if(c.urban)c.urban.builtEra=13; // Prepared built structures, not only a technological number.
+    if (c.urban) c.urban.builtEra = 13; // Prepared built structures, not only a technological number.
   }
   for (const p of w.life!.polities) {
     p.metal = 200;
@@ -219,10 +221,10 @@ test("14개 시대의 픽셀 건축이 실제 렌더러와 게임 화면에 표�
   expect(unique).toBe(14);
   await page.screenshot({ path: "test-results/fourteen-civilizations.png" });
   await page
-    .getByRole("button", {name:w.nations[13].name,exact:true})
+    .getByRole("button", { name: w.nations[13].name, exact: true })
     .click();
   await expect(page.locator(".era-label")).toHaveText("행성간 문명");
-  await page.locator(".illustrated-nation details").evaluate(el=>(el as HTMLDetailsElement).open=true);
+  await page.getByText("정확한 수치와 발전 기록", { exact: true }).click();
   await page.getByRole("button", { name: "도시 가까이 보기" }).click();
   await page.screenshot({ path: "test-results/future-city.png" });
   expect(errors).toEqual([]);

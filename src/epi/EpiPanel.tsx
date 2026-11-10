@@ -217,7 +217,7 @@ export default function EpiPanel({
         <img src="/art/epi.svg" alt="서기관 정령 에피" />
         <div>
           <b>에피</b>
-          <small>창조주님의 세계를 기록해요</small>
+          <small>관찰자님의 세계를 기록해요</small>
         </div>
         <button onClick={onClose} aria-label="에피 닫기">
           ×
@@ -235,7 +235,7 @@ export default function EpiPanel({
       >
         {!chat.messages.length && (
           <div className="epi-welcome">
-            <b>창조주님, 무엇이 궁금하세요?</b>
+            <b>관찰자님, 무엇이 궁금하세요?</b>
             <p>세계의 기록과 지금 모습을 함께 살펴볼게요.</p>
             {[
               "지금 가장 강한 국가가 어디야?",
@@ -251,7 +251,7 @@ export default function EpiPanel({
         {chat.messages.map((m) => (
           <article key={m.id} className={"epi-message " + m.role}>
             <small>
-              {m.role === "user" ? "창조주님" : "에피"} ·{" "}
+              {m.role === "user" ? "관찰자님" : "에피"} ·{" "}
               {m.year.toLocaleString()}년 관측
             </small>
             <div>

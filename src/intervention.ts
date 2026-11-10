@@ -24,5 +24,5 @@ export function intervene(
     (t, i) =>
       t.owner === a && neighbors(w, i).some((j) => w.tiles[j].owner === b),
   );
-  return `${one.name} · ${two.name}: ${action === "war" ? "전쟁" : action === "alliance" ? "동맹" : "평화"} 적용.${action === "war" && !border ? " 접경이 없어 현재 지상군이 교전할 전선이 없습니다." : ""}`;
+  return `${one.name} · ${two.name}: ${action === "war" ? "전쟁" : action === "alliance" ? "동맹" : "평화"} 적용.${action === "war" && !border ? " 원정 경로와 항구·보급 조건에 따라 군대가 출정합니다." : ""}`;
 }

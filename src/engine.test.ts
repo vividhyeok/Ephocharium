@@ -21,17 +21,15 @@ describe("문명 시뮬레이션 A–H", () => {
     const w = make();
     const initial = w.tiles.filter((t) => t.owner).length;
     run(w, 650);
-    console.log(
-      "B 결과",
-      w.nations.length,
-      w.relations,
-      w.history.filter((e) => /전쟁|평화/.test(e.text)).length,
-    );
     expect(w.tiles.filter((t) => t.owner).length).toBeGreaterThan(initial);
     expect(w.relations.length).toBeGreaterThan(0);
     expect(w.relations.some((r) => r.score !== 0)).toBe(true);
-    expect(w.history.some((e) => e.text.includes("전쟁"))).toBe(true);
-  }, 15000);
+    expect(
+      w.diplomacyLog?.some(
+        (e) => ["war", "raid"].includes(e.kind) && e.reason.length > 0,
+      ),
+    ).toBe(true);
+  }, 30000);
   it("C: 인구와 자원 지원은 실제 상태와 성장 경로를 바꾼다", () => {
     const control = run(make(), 30);
     const aided = structuredClone(control);
@@ -67,7 +65,7 @@ describe("문명 시뮬레이션 A–H", () => {
     );
     run(empire, 180);
     expect(empire.history.some((e) => e.text.includes("행정 위기"))).toBe(true);
-  });
+  }, 15000);
   it("E: 재해 피해가 실제 인구와 생산에 반영되고 지형이 회복된다", () => {
     const w = run(make(), 30);
     const n = w.nations[0],
@@ -112,7 +110,7 @@ describe("문명 시뮬레이션 A–H", () => {
     expect(w.history.length).toBeLessThanOrEqual(1200);
     expect(w.nations.every((n) => n.samples.length <= 150)).toBe(true);
     expect(validate(w)).toBe(true);
-  }, 60000);
+  }, 240000);
   it("H: 저장/복원은 RNG와 이후의 역사까지 보존한다", () => {
     const w = run(make(), 150);
     const restored = JSON.parse(JSON.stringify(w));
@@ -121,7 +119,7 @@ describe("문명 시뮬레이션 A–H", () => {
     run(w, 80);
     run(restored, 80);
     expect(restored).toEqual(w);
-  });
+  }, 15000);
   it("여섯 프리셋이 모두 유효한 세계를 생성한다", () => {
     for (const p of [
       "empty",

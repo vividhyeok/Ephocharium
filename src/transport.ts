@@ -1,3 +1,4 @@
+import { policySupport } from "./strategy";
 import { settleExpedition } from './frontier';
 import { record, type World } from "./engine";
 import { eraOf } from "./eras";
@@ -214,6 +215,7 @@ export function buildNetworks(w: World) {
         blocked: false,
         built: w.year,
       };
+      route.capacity *= 1+Math.max(policySupport(w.nations[c.nation-1],"commerce"),policySupport(w.nations[b.nation-1],"commerce"));
       s.routes.push(route);
       existing.set(key, route);
       n.wealth -= 10;

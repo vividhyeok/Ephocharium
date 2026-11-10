@@ -58,7 +58,11 @@ test("세계 → 시간 → 저장 → 내보내기 → 복원 → 관찰 모드
   await page.goto("/");
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
   await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
+  await expect
+    .poll(async () => Number(await page.locator(".stats b").nth(1).innerText()))
+    .toBeGreaterThan(0);
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
+  const kingdoms = await page.locator(".stats b").nth(1).innerText();
   const year = await page.locator(".year").innerText();
   await page.waitForTimeout(1100);
   expect(await page.locator(".year").innerText()).toBe(year);
@@ -87,11 +91,10 @@ test("세계 → 시간 → 저장 → 내보내기 → 복원 → 관찰 모드
     .filter({ hasText: "저장 1" })
     .getByRole("button", { name: "불러오기" })
     .click();
-  await expect(page.locator(".stats b").nth(1)).toHaveText("4");
-  await page.getByRole("button", { name: "관찰 모드" }).click();
+  await expect(page.locator(".stats b").nth(1)).toHaveText(kingdoms);
   await expect(page.locator(".toolbox")).toHaveCount(0);
   await expect(page.getByLabel("사건 따라가기")).toBeVisible();
-  await page.getByRole("button", { name: "도구 펼치기" }).click();
+  await page.getByRole("button", { name: "실험 모드" }).click();
   await page.keyboard.press("Space");
   await expect(
     page.getByRole("button", { name: "재생", exact: true }),
@@ -114,6 +117,7 @@ test("작은 화면에서 새 세계 설정과 도구를 사용할 수 있다", 
   await page.getByRole("button", { name: "＋ 새 세계" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByLabel("패널 닫기").click();
+  await page.getByRole("button", { name: "실험 모드", exact: true }).click();
   await page.getByRole("button", { name: "재해", exact: true }).click();
   await expect(page.getByRole("button", { name: "운석" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
@@ -138,6 +142,7 @@ test("왕국 목록·미니맵·줌 버튼과 패널 키보드 탐색이 동작�
   await page.goto("/");
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
   await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
+  await expect(page.locator(".kingdom-list button").first()).toBeVisible();
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
   await page.locator(".kingdom-list button").first().click();
   await expect(page.locator(".nation-panel")).toBeVisible();
@@ -237,6 +242,7 @@ test("성장한 세계에서 지도 선택과 신의 개입이 실제 인구를 
   );
   const population = Math.round(w.nations[0].population);
   await page.getByLabel("국가 정보 닫기").click();
+  await page.getByRole("button", { name: "실험 모드", exact: true }).click();
   await page.getByRole("button", { name: "인구 지원", exact: true }).click();
   await page.mouse.click(x, y);
   await page.getByRole("button", { name: "관찰", exact: true }).click();
@@ -280,7 +286,9 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     preset: "empty",
   });
   for (const t of w.tiles) {
-    t.t = 2; t.lake=false; t.river=0;
+    t.t = 2;
+    t.lake = false;
+    t.river = 0;
     t.fertility = 0.9;
     t.ore = 0.8;
     t.wood = 0;
@@ -302,7 +310,10 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
     n.aggression = 0.2;
   }
   refreshLife(w);
-  for (let i = 0; i < 180; i++) { for(const c of w.life!.settlements) if(c.urban) c.urban.stock.oil=100; step(w); }
+  for (let i = 0; i < 180; i++) {
+    for (const c of w.life!.settlements) if (c.urban) c.urban.stock.oil = 100;
+    step(w);
+  }
   expect(w.life!.flights.length).toBeGreaterThan(0);
   await page.goto("/");
   await expect(page.getByLabel("문명 세계 지도")).toBeVisible();
@@ -315,10 +326,10 @@ test("도시를 확대하면 주민과 항공기를 볼 수 있고 실제 저장
   });
   await expect(page.locator(".year")).toContainText("180");
   await page
-    .getByRole("button", {name:w.nations[0].name,exact:true})
+    .getByRole("button", { name: w.nations[0].name, exact: true })
     .click();
   await expect(page.locator(".era-label")).toHaveText("정보 문명");
-  await page.locator(".illustrated-nation details").evaluate(el=>(el as HTMLDetailsElement).open=true);
+  await page.getByText("정확한 수치와 발전 기록", { exact: true }).click();
   await page.getByRole("button", { name: "도시 가까이 보기" }).click();
   await expect(page.locator(".city-activity")).toContainText("항공기 1대");
   await page.screenshot({ path: "test-results/aviation-city.png" });
@@ -365,7 +376,9 @@ test("전선에서 군대를 확인하고 평화 능력으로 즉시 해산시�
     preset: "empty",
   });
   for (const t of w.tiles) {
-    t.t = 2; t.lake=false; t.river=0;
+    t.t = 2;
+    t.lake = false;
+    t.river = 0;
     t.fertility = 0.9;
     t.wood = 0;
     t.mineral = 0;
@@ -395,13 +408,14 @@ test("전선에서 군대를 확인하고 평화 능력으로 즉시 해산시�
   });
   await expect(page.locator(".year")).toContainText("12");
   await page
-    .getByRole("button", {name:w.nations[0].name,exact:true})
+    .getByRole("button", { name: w.nations[0].name, exact: true })
     .click();
   await page.getByRole("button", { name: /전선 가까이 보기/ }).click();
   await page.locator(".nation-panel").evaluate((el) => {
     el.scrollTop = 0;
   });
   await page.screenshot({ path: "test-results/battle-front.png" });
+  await page.getByRole("button", { name: "실험 모드", exact: true }).click();
   await page.getByRole("button", { name: "문명", exact: true }).click();
   await page.getByRole("button", { name: "평화", exact: true }).click();
   await page.getByLabel("개입 대상 국가").selectOption("1");

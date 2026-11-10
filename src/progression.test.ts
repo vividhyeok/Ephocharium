@@ -124,7 +124,7 @@ it("explicit intervention uses the selected pair and explains a missing front", 
   const w = make();
   const text = intervene(w, 1, 3, "war");
   expect(getRelation(w, 1, 3).war).toBe(true);
-  expect(text).toContain("접경이 없어");
+  expect(text).toContain("원정 경로");
   expect(getRelation(w, 1, 2).war).toBe(false);
   intervene(w, 1, 3, "peace");
   expect(getRelation(w, 1, 3).war).toBe(false);

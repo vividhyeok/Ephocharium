@@ -1,3 +1,4 @@
+import { policySupport } from "./strategy";
 import { consumeNation, stockNation } from "./resources";
 import { enrichEvent } from "./history";
 import type { World, Nation } from "./engine";
@@ -77,17 +78,32 @@ export function updateDirection(w: World, n: Nation, cells: number[]) {
   const sum = Object.values(target).reduce((a, b) => a + b, 0);
   for (const k of Object.keys(t) as Direction[])
     t[k] += (target[k] / sum - t[k]) * 0.008;
+  if (n.strategy) {
+    const priority = n.strategy.priority,
+      boost = policySupport(n, priority) * 0.02;
+    for (const k of Object.keys(t) as Direction[])
+      t[k] = t[k] * (1 - boost) + (k === priority ? boost : 0);
+  }
 }
 /** Education, specialists and international exchange support capable small nations. */
 export function effectiveWorkforce(w: World, n: Nation) {
-  const cities = w.life?.settlements.filter((c) => c.nation === n.id && c.urban) || [];
+  const cities =
+    w.life?.settlements.filter((c) => c.nation === n.id && c.urban) || [];
   const residents = cities.reduce((sum, c) => sum + c.population, 0);
-  const education = cities.reduce((sum, c) =>
-    sum + c.population * (c.urban?.education || 0), 0) / Math.max(1, residents);
+  const education =
+    cities.reduce(
+      (sum, c) => sum + c.population * (c.urban?.education || 0),
+      0,
+    ) / Math.max(1, residents);
   const imported = cities.reduce((sum, c) => sum + (c.urban?.imported || 0), 0);
-  const allies = w.relations.filter((r) => r.allied && (r.a === n.id || r.b === n.id)).length;
-  return n.population * (1 + Math.min(0.7, education * 0.75 + Math.log1p(imported) * 0.09)) +
-    Math.min(48, allies * 12);
+  const allies = w.relations.filter(
+    (r) => r.allied && (r.a === n.id || r.b === n.id),
+  ).length;
+  return (
+    n.population *
+      (1 + Math.min(0.7, education * 0.75 + Math.log1p(imported) * 0.09)) +
+    Math.min(48, allies * 12)
+  );
 }
 export function developmentGate(w: World, n: Nation) {
   const e = eraOf(n),
@@ -155,6 +171,7 @@ export function researchRate(w: World, n: Nation) {
         : 1) *
       0.045 *
       institutions *
+      (1 + policySupport(n, "research")) *
       (0.25 + economy * 0.3 + population * 0.25 + resources * 0.2) *
       (0.5 + n.stability * 0.5) *
       (n.food > n.population * 0.25 ? 1 : 0.25) *

@@ -463,6 +463,19 @@ export function drawActors(
     x < (ctx.canvas.width - transform.e) / transform.a + 35 &&
     y > -transform.f / transform.d - 35 &&
     y < (ctx.canvas.height - transform.f) / transform.d + 35;
+  for (const group of w.settlers) {
+    const p = coordinates(w, group.tile);
+    if (!visible(p.x, p.y)) continue;
+    ctx.fillStyle = "#e6c882";
+    ctx.beginPath();
+    ctx.moveTo(p.x - 4, p.y + 2);
+    ctx.lineTo(p.x, p.y - 5);
+    ctx.lineTo(p.x + 4, p.y + 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#62492d";
+    ctx.fillRect(p.x - 1, p.y, 2, 3);
+  }
   if (zoom > 0.8)
     for (const p of s.polities) {
       if (!(p.satellites || 0)) continue;
@@ -507,6 +520,26 @@ export function drawActors(
       y = lerp(a.previousY, a.y) * 8,
       era = equipmentEra(n);
     if (!visible(x, y)) continue;
+    const armyTile = Math.floor(a.y) * w.width + Math.floor(a.x);
+    if (a.navalOrigin !== undefined && w.tiles[armyTile]?.t === 0) {
+      ctx.fillStyle = "#624b38";
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y);
+      ctx.lineTo(x + 8, y);
+      ctx.lineTo(x + 5, y + 5);
+      ctx.lineTo(x - 5, y + 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = n.color;
+      ctx.fillRect(x, y - 10, 1, 11);
+      ctx.beginPath();
+      ctx.moveTo(x + 1, y - 10);
+      ctx.lineTo(x + 1, y - 1);
+      ctx.lineTo(x + 7, y - 1);
+      ctx.closePath();
+      ctx.fill();
+      continue;
+    }
     if (zoom >= 3) {
       for (let i = 0; i < Math.min(4, Math.ceil(a.strength / 15)); i++)
         pixelPerson(

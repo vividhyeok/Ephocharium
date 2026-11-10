@@ -1,4 +1,11 @@
-import { culturalName } from './culture';
+import {
+  planCampaign,
+  negotiatePassage,
+  enterNeutral,
+  navalSupplyOpen,
+} from "./campaigns";
+import { isWater } from "./geography";
+import { culturalName } from "./culture";
 import { supplyFactor, populationLoss } from "./militaryLogistics";
 import type { CityData } from "./livingTypes";
 import { consumeNation, creditNation, extract } from "./resources";
@@ -65,6 +72,9 @@ export interface Polity {
   metal: number;
 }
 export interface Army {
+  navalOrigin?: number;
+  provisions?: number;
+  lastPlanYear?: number;
   id: number;
   nation: number;
   enemy: number;
@@ -158,13 +168,14 @@ function move(
     route: number[];
   },
   speed: number,
+  sea = false,
 ) {
   u.previousX = u.x;
   u.previousY = u.y;
   let remaining = speed;
   while (remaining > 0 && u.route.length) {
     const next = u.route[0];
-    if (!canWalk(w, next)) {
+    if (!canWalk(w, next) && !(sea && isWater(w.tiles[next]))) {
       u.route = [];
       break;
     }
@@ -364,7 +375,10 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
     if (era !== polity.era) {
       record(
         w,
-        n.name + "이 " + ERAS[era].name + (era<polity.era?" 수준으로 쇠퇴했습니다":"에 진입했습니다"),
+        n.name +
+          "이 " +
+          ERAS[era].name +
+          (era < polity.era ? " 수준으로 쇠퇴했습니다" : "에 진입했습니다"),
         [n.id],
         n.capital,
       );
@@ -445,8 +459,12 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
       if (!w.living) c.population = n.population / cities.length;
       c.development = clamp(
         c.development +
-          ((c.urban?.operation??1)>.3 && n.food > n.population ? 0.04 : -0.03) +
-          ((c.urban?.operation??1)>.3?Math.min(0.05, n.wealth / 10000):0),
+          ((c.urban?.operation ?? 1) > 0.3 && n.food > n.population
+            ? 0.04
+            : -0.03) +
+          ((c.urban?.operation ?? 1) > 0.3
+            ? Math.min(0.05, n.wealth / 10000)
+            : 0),
         0,
         era + 1 + Math.log1p(Math.max(0, n.tech - 300)),
       );
@@ -632,7 +650,7 @@ export function updateLife(w: World, owned: Map<number, number[]>) {
   updateFlights(w);
   s.polities = s.polities.filter((p) => w.nations[p.nation - 1]?.alive);
 }
-function updateArmies(
+export function updateArmies(
   w: World,
   contexts: Map<
     number,
@@ -670,16 +688,41 @@ function updateArmies(
       const frontier = ctx.cells
         .flatMap((i) => neighbors(w, i))
         .filter((i) => w.tiles[i].owner === enemy && canWalk(w, i));
-      if (!frontier.length) continue;
-      const target = frontier[Math.floor(random(w) * frontier.length)],
+      if (!frontier.length && w.year % 8 !== 0) continue;
+      const target = frontier.length
+          ? frontier.reduce((a, b) =>
+              w.tiles[b].fertility > w.tiles[a].fertility ? b : a,
+            )
+          : w.nations[enemy - 1].capital,
         home = ctx.cities
           .slice()
           .sort(
             (a, b) => distance(w, a.tile, target) - distance(w, b.tile, target),
           )[0];
       if (!home) continue;
-      const path = findRoute(w, home.tile, target);
-      if (!path.length) continue;
+      const plan = planCampaign(w, nation, enemy, home.tile, target);
+      if (!plan?.path.length) continue;
+      const strength = Math.min(220, n.population * 0.09),
+        provisions = strength * 0.8;
+      if (
+        n.food < provisions ||
+        (plan.naval &&
+          (n.wealth < 30 || (n.inventory?.timber || 0) < strength * 0.06))
+      )
+        continue;
+      if (w.living && !consumeNation(w, n, "food", provisions)) continue;
+      if (plan.naval) {
+        consumeNation(w, n, "timber", strength * 0.06);
+        n.wealth -= 30;
+      }
+      negotiatePassage(w, nation, plan.passage);
+      const path = plan.path;
+      record(
+        w,
+        `${n.name}이 ${w.nations[enemy - 1].name}에 대한 ${plan.naval ? "해상 수송·상륙" : "지상"} 작전을 시작했습니다 · 병력 ${Math.round(strength)} · 비축 보급 ${Math.round(provisions)}`,
+        [nation, enemy],
+        home.tile,
+      );
       const p = point(w, home.tile);
       s.armies.push({
         id: s.nextId++,
@@ -691,18 +734,35 @@ function updateArmies(
         previousY: p.y,
         route: path,
         target,
-        strength: Math.min(220, n.population * 0.09),
+        strength,
+        provisions,
+        navalOrigin: plan.origin,
         siege: 0,
         fighting: false,
       });
     }
   for (const a of s.armies) {
-    const n = w.nations[a.nation - 1],
-      enemy = w.nations[a.enemy - 1],
-      ctx = contexts.get(n.id);
+    const n = w.nations[a.nation - 1];
+    let enemy = w.nations[a.enemy - 1];
+    const ctx = contexts.get(n.id);
     if (!ctx) continue;
     a.fighting = false;
-    n.food = Math.max(0, n.food - a.strength * 0.015);
+    const tileNow = index(w, a.x, a.y);
+    const supplied =
+      a.navalOrigin !== undefined
+        ? navalSupplyOpen(w, n.id, a.navalOrigin, tileNow)
+        : supplyFactor(w, n, tileNow) > 0.2;
+    const ration = a.strength * 0.03;
+    a.provisions ??= 0;
+    if (supplied && consumeNation(w, n, "food", ration * 1.5))
+      a.provisions = Math.min(a.strength, a.provisions + ration * 1.5);
+    a.provisions = Math.max(0, a.provisions - ration);
+    if (a.provisions < ration) {
+      const attrition = Math.min(a.strength, a.strength * 0.025);
+      a.strength -= attrition;
+      populationLoss(w, n, attrition);
+    }
+    if (n.inventory) n.food = n.inventory.food;
     n.wealth = Math.max(0, n.wealth - a.strength * 0.008);
     if (
       !a.route.length &&
@@ -711,19 +771,56 @@ function updateArmies(
       const frontier = ctx.cells
         .flatMap((i) => neighbors(w, i))
         .filter((i) => w.tiles[i].owner === a.enemy && canWalk(w, i));
-      if (!frontier.length) continue;
-      a.target = frontier.reduce((best, i) =>
-        distance(w, index(w, a.x, a.y), i) <
-        distance(w, index(w, a.x, a.y), best)
-          ? i
-          : best,
+      if (!frontier.length && a.navalOrigin === undefined) continue;
+      a.target = (frontier.length ? frontier : [enemy.capital]).reduce(
+        (best, i) =>
+          distance(w, index(w, a.x, a.y), i) <
+          distance(w, index(w, a.x, a.y), best)
+            ? i
+            : best,
       );
-      a.route = findRoute(w, index(w, a.x, a.y), a.target);
+      if (a.lastPlanYear !== undefined && w.year - a.lastPlanYear < 8) continue;
+      a.lastPlanYear = w.year;
+      a.route =
+        planCampaign(w, n.id, a.enemy, index(w, a.x, a.y), a.target)?.path ||
+        [];
       a.siege = 0;
     }
-    move(w, a, eraOf(n) >= 7 ? 1.8 : 1.1);
+    const next = a.route[0];
+    if (next !== undefined) {
+      const host = enterNeutral(w, n.id, a.enemy, next);
+      if (host === -1) {
+        a.route = [];
+        continue;
+      }
+      if (host > 0) {
+        a.enemy = host;
+        a.target = next;
+        a.route = [next];
+        a.siege = 0;
+      }
+    }
+    // At most one adjacent step: every crossed neutral border is checked.
+    const destination = a.route[0];
+    const distanceToStep =
+      destination === undefined
+        ? 0
+        : Math.hypot(
+            (destination % w.width) + 0.5 - a.x,
+            Math.floor(destination / w.width) + 0.5 - a.y,
+          );
+    move(
+      w,
+      a,
+      Math.min(
+        distanceToStep,
+        isWater(w.tiles[tileNow]) ? 0.8 : eraOf(n) >= 7 ? 1.8 : 1.1,
+      ),
+      a.navalOrigin !== undefined,
+    );
     const tile = index(w, a.x, a.y);
     if (w.tiles[tile]?.owner !== a.enemy) continue;
+    enemy = w.nations[a.enemy - 1];
     a.route = [];
     a.target = tile;
     a.fighting = true;
@@ -735,7 +832,13 @@ function updateArmies(
       )
       .reduce((total, other) => total + other.strength * 0.2, 0);
     const supply =
-        (w.living ? supplyFactor(w, n, tile) : 1) /
+        (w.living
+          ? a.navalOrigin !== undefined
+            ? supplied
+              ? 0.7
+              : 0.15
+            : supplyFactor(w, n, tile)
+          : 1) /
         (1 + distance(w, n.capital, tile) / 40),
       terrain = w.tiles[tile].t === 3 ? 1.3 : 1;
     const attack =
@@ -791,8 +894,12 @@ function updateFlights(w: World) {
     const a = cities.get(f.from),
       b = cities.get(f.to);
     return (
-      !!a && !!b && a.airport && b.airport &&
-      a.nation === f.nation && b.nation === f.nation &&
+      !!a &&
+      !!b &&
+      a.airport &&
+      b.airport &&
+      a.nation === f.nation &&
+      b.nation === f.nation &&
       w.nations[f.nation - 1]?.alive
     );
   });
@@ -972,6 +1079,9 @@ export function validateLife(w: World): boolean {
         number(a.id) &&
         number(a.strength) &&
         number(a.siege) &&
+        (a.navalOrigin === undefined || tile(a.navalOrigin)) &&
+        (a.provisions === undefined || number(a.provisions)) &&
+        (a.lastPlanYear === undefined || number(a.lastPlanYear)) &&
         typeof a.fighting === "boolean",
     ) &&
     Array.isArray(s.flights) &&

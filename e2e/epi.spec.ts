@@ -4,7 +4,7 @@ test("Epi uses bounded real observations for 23 turns, links nations, survives e
   page,
 }) => {
   test.setTimeout(90000);
-  mkdirSync("docs/screenshots-0.6", { recursive: true });
+  mkdirSync("test-results/screenshots-0.7", { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const requests: any[] = [];
@@ -48,6 +48,7 @@ test("Epi uses bounded real observations for 23 turns, links nations, survives e
   });
   await page.goto("/");
   await page.getByRole("button", { name: "세계 둘러보기 →" }).click();
+  await expect(page.locator(".kingdom-list button").first()).toBeVisible();
   await page.getByRole("button", { name: "일시정지", exact: true }).click();
   await page.getByRole("button", { name: "에피", exact: true }).click();
   for (let i = 0; i < 23; i++) {
@@ -66,7 +67,7 @@ test("Epi uses bounded real observations for 23 turns, links nations, survives e
   expect(JSON.stringify(requests[0])).not.toContain("tiles");
   await page.locator(".epi-nation").last().click();
   await expect(page.locator(".nation-panel")).toBeAttached();
-  await page.screenshot({ path: "docs/screenshots-0.6/epi-desktop.png" });
+  await page.screenshot({ path: "test-results/screenshots-0.7/epi-desktop.png" });
   await page.getByRole("button", { name: "에피 닫기" }).click();
   await page.getByRole("button", { name: "에피", exact: true }).click();
   await expect(page.locator(".epi-message")).toHaveCount(40);
@@ -93,7 +94,7 @@ test("Epi uses bounded real observations for 23 turns, links nations, survives e
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `docs/screenshots-0.6/epi-${width}-${height}.png`,
+      path: `test-results/screenshots-0.7/epi-${width}-${height}.png`,
     });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });

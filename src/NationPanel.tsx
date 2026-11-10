@@ -123,19 +123,25 @@ export default function NationPanel({
           문명 Lv.{e + 1} / 14 · {ERAS[e].name}
         </b>
         <small>
-          다음 시대: {e >= ERAS.length - 1 ? "최종 단계" :
-            developmentGate(w, n) || "연구 진행 중"}
+          다음 시대:{" "}
+          {e >= ERAS.length - 1
+            ? "최종 단계"
+            : developmentGate(w, n) || "연구 진행 중"}
         </small>
         <small>
           생존 국가 중 기술{" "}
           {w.nations.filter((x) => x.alive && x.tech > n.tech).length + 1}위
         </small>
-        {w.relations.filter((r) => r.subject && (r.a === n.id || r.b === n.id))
-          .map((r) => <small key={"subject-" + r.a + "-" + r.b}>
-            {r.subject === n.id ? "종속국 · 본국: " +
-              w.nations[(r.a === n.id ? r.b : r.a) - 1].name :
-              "종속 관계 · 대상국: " + w.nations[r.subject! - 1].name}
-          </small>)}
+        {w.relations
+          .filter((r) => r.subject && (r.a === n.id || r.b === n.id))
+          .map((r) => (
+            <small key={"subject-" + r.a + "-" + r.b}>
+              {r.subject === n.id
+                ? "종속국 · 본국: " +
+                  w.nations[(r.a === n.id ? r.b : r.a) - 1].name
+                : "종속 관계 · 대상국: " + w.nations[r.subject! - 1].name}
+            </small>
+          ))}
         {(["allied", "war"] as const).map((kind) => (
           <div key={kind}>
             <strong>{kind === "allied" ? "동맹국" : "적대국"}</strong>
@@ -215,6 +221,44 @@ export default function NationPanel({
       </section>
       <section className="nation-causes">
         <h3>이 문명이 지금 변하는 이유</h3>
+        {n.strategy && (
+          <article>
+            <div>
+              <b>국가의 정책 판단 · {n.strategy.year}년</b>
+              <p>{n.strategy.reason}</p>
+              <small>
+                실제 투자 {n.strategy.investment.toFixed(1)} · 식량{" "}
+                {n.strategy.foodYears.toFixed(1)}년분
+              </small>
+              <details>
+                <summary>최근 정책 기록</summary>
+                {[...n.strategy.history].reverse().map((h) => (
+                  <p key={h.year}>
+                    {h.year}년 · {h.reason}
+                  </p>
+                ))}
+              </details>
+            </div>
+          </article>
+        )}
+        {w.relations
+          .filter(
+            (r) =>
+              r.accessUntil !== undefined && r.accessUntil >= w.year && (r.a === n.id || r.b === n.id),
+          )
+          .map((r) => (
+            <p key={`${r.a}:${r.b}`}>
+              통행·보급 협정 · {w.nations[(r.a === n.id ? r.b : r.a) - 1]?.name}{" "}
+              · {r.accessUntil}년까지
+            </p>
+          ))}
+        {armies.map((a) => (
+          <p key={a.id}>
+            {a.navalOrigin !== undefined ? "해상 원정" : "지상 작전"} →{" "}
+            {w.nations[a.enemy - 1]?.name} · 병력 {Math.round(a.strength)} ·
+            보급 {Math.round(a.provisions || 0)}
+          </p>
+        ))}
         {(u?.causes || []).slice(0, 4).map((c) => (
           <article key={c.key}>
             <img

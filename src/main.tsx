@@ -39,7 +39,7 @@ const PRESETS: {
   {
     id: "dawn",
     name: "문명의 시작",
-    description: "스무 명의 작은 발걸음에서",
+    description: "여러 유역에서 정착·건국·이주가 시작됩니다",
     icon: "♟",
   },
   {
@@ -67,6 +67,15 @@ const PRESETS: {
     icon: "◉",
   },
 ];
+const DEFAULT_WORLD: Options = {
+  seed: 241026,
+  size: 112,
+  sea: 0.45,
+  forest: 0.4,
+  mountains: 0.07,
+  preset: "dawn",
+  developmentSpeed: "standard",
+};
 function App() {
   const ui = useUI();
   const [displayMenu, setDisplayMenu] = useState(false);
@@ -132,15 +141,14 @@ function App() {
   const [slotList, setSlotList] = useState<
     { key: string; world: World; date: number }[]
   >([]);
-  const [options, setOptions] = useState<Options>({
-    seed: 241026,
-    size: 112,
-    sea: 0.45,
-    forest: 0.4,
-    mountains: 0.07,
-    preset: "four",
-    developmentSpeed: "standard",
-  });
+  const [options, setOptions] = useState<Options>(DEFAULT_WORLD);
+  const openNewWorld = () => {
+    setOptions({
+      ...DEFAULT_WORLD,
+      seed: crypto.getRandomValues(new Uint32Array(1))[0] & 0x7fffffff,
+    });
+    setPanel("new");
+  };
   const input = useRef<HTMLInputElement>(null);
   const notify = (s: string) => setToast(s);
   useEffect(() => {
@@ -189,6 +197,9 @@ function App() {
     worker.current?.postMessage({ type: "speed", speed: ui.speed });
     worker.current?.postMessage({ type: "pause", paused: ui.paused });
   }, [ui.speed, ui.paused]);
+  useEffect(() => {
+    worker.current?.postMessage({ type: "observer", enabled: ui.observe });
+  }, [ui.observe]);
   useEffect(() => {
     const id = setInterval(() => {
       if (worldRef.current)
@@ -329,7 +340,10 @@ function App() {
     (u) => Math.floor(u.y) * world.width + Math.floor(u.x) === hoverTile,
   );
   const alive = world?.nations.filter((n) => n.alive) || [];
-  const population = Math.round(alive.reduce((a, n) => a + n.population, 0));
+  const population = Math.round(
+    alive.reduce((a, n) => a + n.population, 0) +
+      (world?.settlers.reduce((a, s) => a + s.population, 0) || 0),
+  );
   const wars = world?.relations.filter((r) => r.war).length || 0;
   return (
     <main className={ui.observe ? "app observing" : "app"}>
@@ -353,7 +367,7 @@ function App() {
           <button
             className="new-world-button"
             aria-label="＋ 새 세계"
-            onClick={() => setPanel("new")}
+            onClick={openNewWorld}
           >
             <Icon name="plus" size={15} /> 새 세계
           </button>
@@ -397,7 +411,12 @@ function App() {
             <img src="/art/epi.svg" alt="" />
             <button
               onClick={() => {
-                setEpiPrompt(report.year+'년의 보고: '+report.text + " 이 사건의 배경과 영향을 설명해줘");
+                setEpiPrompt(
+                  report.year +
+                    "년의 보고: " +
+                    report.text +
+                    " 이 사건의 배경과 영향을 설명해줘",
+                );
                 setEpiOpen(true);
                 if (report.tile !== undefined) setFocus(report.tile);
                 if (report.nation) setSelected(report.nation);
@@ -426,7 +445,7 @@ function App() {
             pair={
               ["war", "alliance", "peace"].includes(ui.tool) ? pair : undefined
             }
-            tool={ui.tool}
+            tool={ui.observe ? "inspect" : ui.tool}
             radius={ui.radius}
             political={ui.political}
             labels={ui.labels}
@@ -438,12 +457,14 @@ function App() {
             paused={ui.paused}
             speed={ui.speed}
             onStroke={(begin) => {
+              if (ui.observe) return;
               if (!["war", "alliance", "peace"].includes(ui.tool))
                 worker.current?.postMessage({ type: begin ? "begin" : "end" });
             }}
             onHover={setHoverTile}
             onSelect={(id) => setSelected(id)}
             onUse={(tile) => {
+              if (ui.observe) return;
               if (["war", "alliance", "peace"].includes(ui.tool)) {
                 const id = world.tiles[tile].owner;
                 if (id) {
@@ -463,7 +484,7 @@ function App() {
         ) : (
           <div className="loading">✦ 세계를 빚고 있습니다…</div>
         )}
-        {["war", "alliance", "peace"].includes(ui.tool) && (
+        {!ui.observe && ["war", "alliance", "peace"].includes(ui.tool) && (
           <aside className="intervention-picker">
             <strong>두 국가 지정 · {TOOLS[ui.tool].label}</strong>
             <label>
@@ -564,6 +585,11 @@ function App() {
               <small>전쟁</small>
             </span>
           </div>
+          {!!world?.settlers.length && (
+            <p className="settler-count">
+              이동·정착 중인 공동체 {world.settlers.length}곳
+            </p>
+          )}
           {world?.life && (
             <div className="living-summary">
               <Icon name="human" size={12} />
@@ -575,15 +601,17 @@ function App() {
           )}
         </div>
         <div className="map-actions">
-          <button
-            className="undo-action"
-            aria-label="개입 실행 취소"
-            disabled={!canUndo}
-            title="직전 개입 직전의 세계 상태로 복원합니다"
-            onClick={() => worker.current?.postMessage({ type: "undo" })}
-          >
-            ↶ 취소
-          </button>
+          {!ui.observe && (
+            <button
+              className="undo-action"
+              aria-label="개입 실행 취소"
+              disabled={!canUndo}
+              title="직전 개입 직전의 세계 상태로 복원합니다"
+              onClick={() => worker.current?.postMessage({ type: "undo" })}
+            >
+              ↶ 취소
+            </button>
+          )}
 
           <button
             className={ui.political ? "active" : ""}
@@ -597,7 +625,7 @@ function App() {
             onClick={() => ui.set({ observe: !ui.observe, tool: "inspect" })}
           >
             <Icon name="eye" size={15} />{" "}
-            {ui.observe ? "도구 펼치기" : "관찰 모드"}
+            {ui.observe ? "실험 모드" : "관찰자로 돌아가기"}
           </button>
           <button
             title="실제 세계 사건 기록"
@@ -664,7 +692,7 @@ function App() {
             </div>
           )}
         </div>
-        {!ui.observe && world && (
+        {world && (
           <div className="atlas-corner">
             <Minimap world={world} onFocus={setFocus} />
             <p>
@@ -672,7 +700,7 @@ function App() {
             </p>
           </div>
         )}
-        {!n && !ui.observe && (
+        {!n && (
           <aside className="kingdoms-panel">
             <div className="section-caption">
               <span>
@@ -697,7 +725,7 @@ function App() {
             </button>
           </aside>
         )}
-        {tile && !ui.observe && (
+        {tile && (
           <aside className="tile-inspector">
             <span className="eyebrow">가까이 들여다보기</span>
             <h3>
@@ -813,8 +841,8 @@ function App() {
             </div>
             <span>당신의 세계가 시작되었습니다</span>
             <p>
-              왕국을 눌러 이야기를 읽거나, 아래에서 인간을 선택해 땅에
-              놓아보세요.
+              왕국을 눌러 정책과 역사를 읽고, 국가들이 스스로 선택하는 과정을
+              지켜보세요.
               <br />
               왕국을 선택하고 ‘도시 가까이 보기’로 움직이는 주민을 만나보세요.
             </p>
@@ -859,6 +887,14 @@ function App() {
           </div>
         )}
       </section>
+      {ui.observe && (
+        <nav className="observer-dock" aria-label="관찰 도구">
+          <strong>관찰자의 기록실</strong>
+          <button onClick={() => setPanel("history")}>연표·전쟁 기록</button>
+          <button onClick={() => setEpiOpen(true)}>에피에게 물어보기</button>
+          <small>국가를 선택해 정책과 변화 원인을 읽으세요</small>
+        </nav>
+      )}
       <footer>
         <div
           className="time-controls"
@@ -899,7 +935,7 @@ function App() {
                     className={ui.category === c ? "selected" : ""}
                     onClick={() =>
                       c === "세계 설정"
-                        ? setPanel("new")
+                        ? openNewWorld()
                         : ui.set({
                             category: c,
                             tool: Object.keys(TOOLS).find(
@@ -1007,7 +1043,7 @@ function App() {
                   new: "어떤 역사를 시작할까요?",
                   history: "세계가 남긴 발자취",
                   save: "당신의 세계를 간직하세요",
-                  help: "작은 개입, 무한한 이야기",
+                  help: "관찰자의 안내서",
                 }[panel]
               }
             </h2>
@@ -1035,75 +1071,84 @@ function App() {
                     </button>
                   ))}
                 </div>
-                <div className="settings">
-                  <label>
-                    세계 크기
-                    <select
-                      value={options.size}
-                      onChange={(e) =>
-                        setOptions({ ...options, size: Number(e.target.value) })
-                      }
-                    >
-                      <option value={80}>작게 · 80</option>
-                      <option value={112}>보통 · 112</option>
-                      <option value={160}>크게 · 160</option>
-                      <option value={192}>대륙 · 192</option>
-                      <option value={256}>광대한 세계 · 256</option>
-                    </select>
-                  </label>
-                  <label>
-                    문명 발전 속도
-                    <select
-                      aria-label="문명 발전 속도"
-                      value={options.developmentSpeed || "standard"}
-                      onChange={(e) =>
-                        setOptions({
-                          ...options,
-                          developmentSpeed: e.target
-                            .value as Options["developmentSpeed"],
-                        })
-                      }
-                    >
-                      <option value="relaxed">느긋하게</option>
-                      <option value="standard">표준</option>
-                      <option value="fast">빠르게</option>
-                    </select>
-                  </label>
-                  <label>
-                    세계의 시드
-                    <input
-                      value={options.seed}
-                      type="number"
-                      onChange={(e) =>
-                        setOptions({ ...options, seed: Number(e.target.value) })
-                      }
-                    />
-                  </label>
-                  {(["sea", "forest", "mountains"] as const).map((k) => (
-                    <label key={k}>
-                      {
-                        {
-                          sea: "바다 면적",
-                          forest: "숲의 밀도",
-                          mountains: "산맥의 밀도",
-                        }[k]
-                      }
-                      <input
-                        type="range"
-                        min="0.05"
-                        max={k === "mountains" ? 0.35 : 0.85}
-                        step="0.05"
-                        value={options[k]}
+                <details className="advanced-world">
+                  <summary>세부 설정</summary>
+                  <div className="settings">
+                    <label>
+                      세계 크기
+                      <select
+                        value={options.size}
                         onChange={(e) =>
                           setOptions({
                             ...options,
-                            [k]: Number(e.target.value),
+                            size: Number(e.target.value),
+                          })
+                        }
+                      >
+                        <option value={80}>작게 · 80</option>
+                        <option value={112}>보통 · 112</option>
+                        <option value={160}>크게 · 160</option>
+                        <option value={192}>대륙 · 192</option>
+                        <option value={256}>광대한 세계 · 256</option>
+                      </select>
+                    </label>
+                    <label>
+                      문명 발전 속도
+                      <select
+                        aria-label="문명 발전 속도"
+                        value={options.developmentSpeed || "standard"}
+                        onChange={(e) =>
+                          setOptions({
+                            ...options,
+                            developmentSpeed: e.target
+                              .value as Options["developmentSpeed"],
+                          })
+                        }
+                      >
+                        <option value="relaxed">느긋하게</option>
+                        <option value="standard">표준</option>
+                        <option value="fast">빠르게</option>
+                      </select>
+                    </label>
+                    <label>
+                      세계의 시드
+                      <input
+                        value={options.seed}
+                        type="number"
+                        onChange={(e) =>
+                          setOptions({
+                            ...options,
+                            seed: Number(e.target.value),
                           })
                         }
                       />
                     </label>
-                  ))}
-                </div>
+                    {(["sea", "forest", "mountains"] as const).map((k) => (
+                      <label key={k}>
+                        {
+                          {
+                            sea: "바다 면적",
+                            forest: "숲의 밀도",
+                            mountains: "산맥의 밀도",
+                          }[k]
+                        }
+                        <input
+                          type="range"
+                          min="0.05"
+                          max={k === "mountains" ? 0.35 : 0.85}
+                          step="0.05"
+                          value={options[k]}
+                          onChange={(e) =>
+                            setOptions({
+                              ...options,
+                              [k]: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </details>
                 <p className="muted">
                   현재 세계는 교체됩니다. 간직하려면 먼저 저장하세요.
                 </p>
@@ -1114,7 +1159,8 @@ function App() {
                     setSelected(0);
                     ui.set({
                       paused: false,
-                      observe: options.preset === "observe",
+                      speed: options.preset === "dawn" ? 5 : 1,
+                      observe: true,
                     });
                     setPanel(null);
                   }}
@@ -1246,9 +1292,9 @@ function App() {
             {panel === "help" && (
               <div className="help">
                 <p>
-                  당신은 이 세계의 관찰자이자 작은 기적을 만드는 존재입니다.
-                  식량과 환경에 따라 인구가 자라고, 국경을 맞댄 왕국은
-                  교역하거나 경쟁합니다.
+                  당신은 이 세계의 관찰자입니다. 국가들은 자원과 상황에 따라
+                  스스로 정책을 선택하고 그 결과를 감당합니다. 식량과 환경에
+                  따라 인구가 자라고, 국경을 맞댄 왕국은 교역하거나 경쟁합니다.
                 </p>
                 <p>
                   <b>관찰</b>을 선택하고 드래그해 지도를 움직이세요. 다른 도구를
@@ -1257,7 +1303,7 @@ function App() {
                 <p>
                   휠 · 확대/축소
                   <br />
-                  좌클릭/드래그 · 능력 사용
+                  좌클릭 · 국가 선택 / 드래그 · 지도 이동
                   <br />
                   우클릭 · 국가 정보
                   <br />
@@ -1268,9 +1314,10 @@ function App() {
                   ESC · 패널 닫기
                 </p>
                 <p>
-                  인간 20명은 몇 년에 걸쳐 정착합니다. 인구를 지원할 때는 식량도
-                  살펴보세요. 국경이 만나야 외교가 시작되며, 산과 바다는 영토
-                  확장을 막습니다.
+                  국가를 선택하면 정책 판단과 식량·도시·외교 기록을 읽을 수
+                  있습니다. 바다 건너 원정에는 항구·수송 자재·식량이 필요하고,
+                  중립국을 통과하려면 협정이나 전쟁을 감수해야 합니다. 직접
+                  지형과 재해를 조작하려면 실험 모드로 전환하세요.
                 </p>
                 <p>
                   관찰 모드의 ‘사건 따라가기’를 켜면 주요 사건으로 지도가

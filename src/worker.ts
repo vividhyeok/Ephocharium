@@ -11,6 +11,7 @@ import { intervene } from "./intervention";
 let world: World | undefined, undo: World | undefined;
 let epoch = 0;
 let lastTool = "";
+let observer = true;
 let speed = 1,
   paused = false,
   stroke = false;
@@ -44,17 +45,27 @@ function checkpoint() {
   undo = structuredClone(world);
 }
 self.onmessage = ({ data }) => {
+  if (data.type === "observer") {
+    observer = !!data.enabled;
+    if (observer) stroke = false;
+    return;
+  }
+  if (
+    observer &&
+    ["begin", "end", "apply", "intervene", "undo"].includes(data.type)
+  )
+    return;
   if (data.type === "generate") {
     epoch++;
     world = generate(data.options);
-    world.worldId=crypto.randomUUID();
+    world.worldId = crypto.randomUUID();
     undo = undefined;
     send();
   }
   if (data.type === "load" && validate(data.world)) {
     epoch++;
     world = upgradeWorld(data.world);
-    world.worldId??=crypto.randomUUID();
+    world.worldId ??= crypto.randomUUID();
     prepareProgress(world);
     initializeDiplomacy(world);
     ensureLiving(world);

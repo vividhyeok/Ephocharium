@@ -55,15 +55,15 @@ export function useEpiReports(w: World | undefined, enabled: boolean) {
             (s, n) => s + n.eraCounts.slice(7).reduce((a, b) => a + b, 0),
             0,
           ) === 1
-            ? "창조주님, 이 세계에 첫 산업 문명이 나타났어요."
-            : "창조주님, 산업 문명이 새롭게 모습을 드러냈어요.",
+            ? "관찰자님, 이 세계에 첫 산업 문명이 나타났어요."
+            : "관찰자님, 산업 문명이 새롭게 모습을 드러냈어요.",
         year: w.year,
         nation: alive.find((n) => n.tech >= 26)?.id,
       });
     if (s.population > 100 && pop < s.population * 0.8 && elapsed <= 100)
       candidates.push({
         id: "loss:" + Math.floor(w.year / 100),
-        text: "창조주님, 세계 인구가 크게 줄었어요. 원인을 함께 살펴볼까요?",
+        text: "관찰자님, 세계 인구가 크게 줄었어요. 원인을 함께 살펴볼까요?",
         year: w.year,
       });
     for (const e of w.history
@@ -80,7 +80,7 @@ export function useEpiReports(w: World | undefined, enabled: boolean) {
         id: /개척선이 도착/.test(e.text)
           ? "colonization"
           : String(e.id || e.year + e.text),
-        text: "창조주님, " + e.text.slice(0, 100),
+        text: "관찰자님, " + e.text.slice(0, 100),
         year: e.year,
         tile: e.tile,
         nation: e.nations[0],
@@ -93,7 +93,7 @@ export function useEpiReports(w: World | undefined, enabled: boolean) {
     )
       candidates.push({
         id: "peace:" + w.archive.peaceSince,
-        text: "창조주님, 기록된 평화가 100년 이상 이어지고 있어요.",
+        text: "관찰자님, 기록된 평화가 100년 이상 이어지고 있어요.",
         year: w.year,
       });
     const levels = alive.map((n) => Math.floor(n.tech));
@@ -104,7 +104,7 @@ export function useEpiReports(w: World | undefined, enabled: boolean) {
     )
       candidates.push({
         id: "gap:" + Math.floor(w.year / 1000),
-        text: "창조주님, 국가 간 기술 격차가 커졌어요. 발전 여건을 비교해 볼까요?",
+        text: "관찰자님, 국가 간 기술 격차가 커졌어요. 발전 여건을 비교해 볼까요?",
         year: w.year,
       });
     const next = candidates.find((c) => !s.seen.has(c.id));

@@ -12,6 +12,16 @@ export function supplyFactor(w: World, n: Nation, tile: number) {
   }
   let c = cache.get(n.id);
   if (!c || c.year !== w.year) {
+    const permitted = new Set([0, n.id]);
+    for (const r of w.relations)
+      if (
+        (r.a === n.id || r.b === n.id) &&
+        !r.war &&
+        (r.allied ||
+          r.subject ||
+          (r.accessUntil !== undefined && r.accessUntil >= w.year))
+      )
+        permitted.add(r.a === n.id ? r.b : r.a);
     const tiles = new Set<number>(),
       q = [n.capital];
     tiles.add(n.capital);
@@ -20,7 +30,7 @@ export function supplyFactor(w: World, n: Nation, tile: number) {
         const t = w.tiles[j];
         if (
           tiles.has(j) ||
-          t.owner !== n.id ||
+          !permitted.has(t.owner) ||
           t.t === 0 ||
           t.lake ||
           ((t.river || 0) > 1.5 && !t.bridge)
@@ -32,10 +42,9 @@ export function supplyFactor(w: World, n: Nation, tile: number) {
     c = { year: w.year, tiles };
     cache.set(n.id, c);
   }
-  const bank =
-    w.tiles[tile].owner === n.id
-      ? tile
-      : adjacent(w, tile).find((i) => w.tiles[i].owner === n.id);
+  const bank = c.tiles.has(tile)
+    ? tile
+    : adjacent(w, tile).find((i) => c.tiles.has(i));
   if (bank === undefined || !c.tiles.has(bank)) return 0.15;
   const t = w.tiles[bank],
     industry = w
