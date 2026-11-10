@@ -13,7 +13,7 @@ test('release atlas, visual action vocabulary, touch pan/pinch and responsive na
  await page.getByRole('button',{name:'실험 모드',exact:true}).click();
  await page.getByRole('button',{name:'재해',exact:true}).click();
  const sources=await page.locator('.tools img').evaluateAll(images=>images.map(img=>(img as HTMLImageElement).src));expect(new Set(sources).size).toBe(sources.length);
- expect(await page.locator('.tools img').evaluateAll(images=>images.every(img=>(img as HTMLImageElement).complete&&(img as HTMLImageElement).naturalWidth>0))).toBe(true);
+ await expect.poll(()=>page.locator('.tools img').evaluateAll(images=>images.every(img=>(img as HTMLImageElement).complete&&(img as HTMLImageElement).naturalWidth>0))).toBe(true);
  await page.screenshot({path:'test-results/screenshots-0.7/tools-disasters.png'});
  await page.locator('.kingdom-list button').first().click();
  await expect(page.locator('.nation-skyline img')).toBeVisible();await page.screenshot({path:'test-results/screenshots-0.7/nation-overview.png'});
@@ -25,7 +25,10 @@ test('release atlas, visual action vocabulary, touch pan/pinch and responsive na
   await page.screenshot({path:`test-results/screenshots-0.7/viewport-${width}-${height}.png`});
  }
  await page.setViewportSize({width:390,height:844});
- const canvas=page.getByLabel('문명 세계 지도');const before=Number(await canvas.getAttribute('data-zoom'));
+ const canvas=page.getByLabel('문명 세계 지도');
+ await page.getByLabel('세계 전체 보기').click();
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-zoom'))).toBeLessThan(.8);
+ const before=Number(await canvas.getAttribute('data-zoom'));
  const client=await page.context().newCDPSession(page);
  const bounds=(await canvas.boundingBox())!;
  await client.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:140,y:bounds.y+260},{x:230,y:bounds.y+260}]});

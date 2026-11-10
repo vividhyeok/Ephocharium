@@ -24,6 +24,7 @@ import {
 import { useUI } from "./store";
 import * as storage from "./storage";
 import "./style.css";
+import "./compactHud.css";
 const PRESETS: {
   id: Preset;
   name: string;
@@ -77,19 +78,34 @@ const DEFAULT_WORLD: Options = {
   preset: "dawn",
   developmentSpeed: "standard",
 };
+const COMPACT_HUD =
+  "(max-width: 760px), (max-width: 950px) and (max-height: 550px)";
+const LIGHT_MAP = COMPACT_HUD + ", (pointer: coarse)";
 function App() {
   const ui = useUI();
   const [displayMenu, setDisplayMenu] = useState(false);
+  const [nationListOpen, setNationListOpen] = useState(false);
+  const [compactHud, setCompactHud] = useState(
+    () => matchMedia(COMPACT_HUD).matches,
+  );
   const [smallScreen, setSmallScreen] = useState(
-    () => matchMedia("(max-width: 760px), (pointer: coarse)").matches,
+    () => matchMedia(LIGHT_MAP).matches,
   );
   const [lightOverride, setLightOverride] = useState<boolean>();
   const lightMap = lightOverride ?? smallScreen;
   useEffect(() => {
-    const query = matchMedia("(max-width: 760px), (pointer: coarse)");
-    const update = () => setSmallScreen(query.matches);
+    const query = matchMedia(LIGHT_MAP);
+    const compact = matchMedia(COMPACT_HUD);
+    const update = () => {
+      setSmallScreen(query.matches);
+      setCompactHud(compact.matches);
+    };
     query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
+    compact.addEventListener("change", update);
+    return () => {
+      query.removeEventListener("change", update);
+      compact.removeEventListener("change", update);
+    };
   }, []);
   const [world, setWorld] = useState<World>();
   const worldRef = useRef<World | undefined>(undefined);
@@ -247,6 +263,8 @@ function App() {
       }
       if (e.key === "Escape") {
         setPanel(null);
+        setNationListOpen(false);
+        setDisplayMenu(false);
         setSelected(0);
         setEpiOpen(false);
         ui.set({ tool: "inspect" });
@@ -388,7 +406,7 @@ function App() {
             aria-label="＋ 새 세계"
             onClick={openNewWorld}
           >
-            <Icon name="plus" size={15} /> 새 세계
+            <Icon name="plus" size={15} /> <span>새 세계</span>
           </button>
           <button aria-label="▣ 저장" onClick={openSave}>
             <Icon name="save" size={16} /> <span>저장</span>
@@ -401,7 +419,10 @@ function App() {
             aria-label="에피"
             aria-expanded={epiOpen}
             disabled={!world}
-            onClick={() => setEpiOpen(!epiOpen)}
+            onClick={() => {
+              setNationListOpen(false);
+              setEpiOpen(!epiOpen);
+            }}
           >
             <img src="/art/epi.svg" alt="" />
             <span>에피</span>
@@ -474,6 +495,8 @@ function App() {
             focus={focus}
             command={viewCommand}
             lightMap={lightMap}
+            compact={compactHud}
+            covered={compactHud && (epiOpen || !!panel)}
             paused={ui.paused}
             speed={ui.speed}
             onStroke={(begin) => {
@@ -482,7 +505,11 @@ function App() {
                 worker.current?.postMessage({ type: begin ? "begin" : "end" });
             }}
             onHover={setHoverTile}
-            onSelect={(id) => setSelected(id)}
+            onSelect={(id) => {
+              setNationListOpen(false);
+              setDisplayMenu(false);
+              setSelected(id);
+            }}
             onUse={(tile) => {
               if (ui.observe) return;
               if (["war", "alliance", "peace"].includes(ui.tool)) {
@@ -635,29 +662,37 @@ function App() {
 
           <button
             className={ui.political ? "active" : ""}
+            aria-label="국경"
+            aria-pressed={ui.political}
             title="국가의 영토와 국경 표시"
             onClick={() => ui.set({ political: !ui.political })}
           >
-            <Icon name="nation" size={15} /> 국경
+            <Icon name="nation" size={15} /> <span>국경</span>
           </button>
           <button
             className={ui.observe ? "active" : ""}
+            aria-label={ui.observe ? "실험 모드" : "관찰자로 돌아가기"}
             onClick={() => ui.set({ observe: !ui.observe, tool: "inspect" })}
           >
             <Icon name="eye" size={15} />{" "}
-            {ui.observe ? "실험 모드" : "관찰자로 돌아가기"}
+            <span>{ui.observe ? "실험 모드" : "관찰자로 돌아가기"}</span>
           </button>
           <button
+            className="desktop-history-action"
             title="실제 세계 사건 기록"
             onClick={() => setPanel("history")}
           >
             <Icon name="history" size={15} /> 역사
           </button>
           <button
+            aria-label="표시"
             aria-expanded={displayMenu}
-            onClick={() => setDisplayMenu(!displayMenu)}
+            onClick={() => {
+              setNationListOpen(false);
+              setDisplayMenu(!displayMenu);
+            }}
           >
-            <Icon name="settings" size={15} /> 표시
+            <Icon name="settings" size={15} /> <span>표시</span>
           </button>
           {displayMenu && (
             <div
@@ -716,6 +751,16 @@ function App() {
                 />
                 에피의 조용한 사건 보고
               </label>
+              {compactHud && ui.observe && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={autoCamera}
+                    onChange={(e) => setAutoCamera(e.target.checked)}
+                  />
+                  사건 따라가기
+                </label>
+              )}
               <small>
                 국가에 마우스를 올리면 동맹은 청록색, 전쟁은 주홍색 선으로
                 표시됩니다.
@@ -723,7 +768,7 @@ function App() {
             </div>
           )}
         </div>
-        {world && (
+        {world && !compactHud && (
           <div className="atlas-corner">
             <Minimap world={world} onFocus={setFocus} />
             <p>
@@ -731,18 +776,41 @@ function App() {
             </p>
           </div>
         )}
-        {!n && (
-          <aside className="kingdoms-panel">
+        {compactHud && (
+          <button
+            className="mobile-nations"
+            aria-label="국가 목록"
+            aria-expanded={nationListOpen}
+            onClick={() => {
+              setDisplayMenu(false);
+              setSelected(0);
+              setNationListOpen(!nationListOpen);
+            }}
+          >
+            <Icon name="nation" size={16} /> 국가
+          </button>
+        )}
+        {!n && (!compactHud || nationListOpen) && (
+          <aside className="kingdoms-panel" aria-label="이 세계의 왕국">
             <div className="section-caption">
               <span>
                 <Icon name="nation" size={14} /> 이 세계의 왕국
               </span>
               <small>{alive.length}</small>
+              {compactHud && (
+                <button
+                  aria-label="국가 목록 닫기"
+                  onClick={() => setNationListOpen(false)}
+                >
+                  ×
+                </button>
+              )}
             </div>
             {world && (
               <NationBrowser
                 world={world}
                 onSelect={(nation) => {
+                  setNationListOpen(false);
                   setSelected(nation.id);
                   setFocus(nation.capital);
                 }}
@@ -756,9 +824,17 @@ function App() {
             </button>
           </aside>
         )}
-        {tile && (
+        {tile && (!compactHud || (!n && !nationListOpen && !displayMenu)) && (
           <aside className="tile-inspector">
             <span className="eyebrow">가까이 들여다보기</span>
+            {compactHud && (
+              <button
+                aria-label="지형 정보 닫기"
+                onClick={() => setHoverTile(-1)}
+              >
+                ×
+              </button>
+            )}
             <h3>
               {tile.biome === "arid"
                 ? "사막"
@@ -897,7 +973,7 @@ function App() {
             </button>
           </div>
         )}
-        {eventLevel !== "off" && (
+        {!compactHud && eventLevel !== "off" && (
           <div className="event-feed event-stack" role="log" aria-live="polite">
             <span className="event-indicator">
               <Icon name="history" size={16} />
@@ -928,7 +1004,7 @@ function App() {
           </div>
         )}
       </section>
-      {ui.observe && (
+      {ui.observe && !compactHud && (
         <nav className="observer-dock" aria-label="관찰 도구">
           <strong>관찰자의 기록실</strong>
           <button onClick={() => setPanel("history")}>연표·전쟁 기록</button>
@@ -957,6 +1033,7 @@ function App() {
               {[1, 2, 5, 10, 20].map((s) => (
                 <button
                   className={ui.speed === s ? "selected" : ""}
+                  aria-pressed={ui.speed === s}
                   key={s}
                   onClick={() => ui.set({ speed: s })}
                 >
@@ -1053,6 +1130,15 @@ function App() {
             </>
           )}
         </div>
+        {compactHud && (
+          <button
+            className="mobile-history"
+            onClick={() => setPanel("history")}
+            aria-label="연표·전쟁 기록"
+          >
+            <Icon name="history" size={18} />
+          </button>
+        )}
       </footer>
       {panel && (
         <div className="modal-backdrop" onClick={() => setPanel(null)}>

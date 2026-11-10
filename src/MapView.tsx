@@ -12,6 +12,34 @@ const PALETTE = [
   "#a5ad99",
   "#d8e2ce",
 ];
+type Camera = {
+  x: number;
+  y: number;
+  zoom: number;
+  ready: boolean;
+  fitted: boolean;
+};
+
+function fitWorld(
+  c: Camera,
+  w: World,
+  width: number,
+  height: number,
+  compact: boolean,
+) {
+  const margin = compact ? 24 : 80;
+  const top = compact ? (width >= 601 && height < 460 ? 52 : 105) : 40;
+  const bottom = compact ? 55 : 40;
+  const mapHeight = Math.max(1, height - top - bottom);
+  c.zoom = Math.max(
+    0.05,
+    Math.min((width - margin) / (w.width * 8), mapHeight / (w.height * 8)),
+  );
+  c.x = (width - w.width * 8 * c.zoom) / 2;
+  c.y = top + (mapHeight - w.height * 8 * c.zoom) / 2;
+  c.fitted = true;
+}
+
 interface Props {
   world: World;
   worldEpoch: number;
@@ -29,6 +57,8 @@ interface Props {
   command: { action: string; id: number };
   paused: boolean;
   lightMap?: boolean;
+  compact: boolean;
+  covered: boolean;
   speed: number;
   onStroke: (begin: boolean) => void;
   onHover: (tile: number) => void;
@@ -37,7 +67,13 @@ export default function MapView(props: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const latest = useRef(props);
   latest.current = props;
-  const camera = useRef({ x: 0, y: 0, zoom: 1, ready: false });
+  const camera = useRef<Camera>({
+    x: 0,
+    y: 0,
+    zoom: 1,
+    ready: false,
+    fitted: true,
+  });
   useEffect(() => {
     const el = canvas.current!;
     let dpr = Math.min(
@@ -50,6 +86,7 @@ export default function MapView(props: Props) {
     let cachedPolitical: boolean | undefined;
     let cachedRevision: number | undefined;
     let cachedDetail = -1;
+    let cachedScale = 1;
     let cachedEpoch: number | undefined;
     let frame = 0;
     const paintInterval = matchMedia("(pointer:coarse)").matches
@@ -69,11 +106,35 @@ export default function MapView(props: Props) {
     let dims = "";
     let snapshot: World | undefined;
     let snapshotTime = performance.now();
+    let viewWidth = 0;
+    let viewHeight = 0;
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio, latest.current.lightMap ? 1 : 2);
-      const r = el.getBoundingClientRect();
-      el.width = Math.round(r.width * dpr);
-      el.height = Math.round(r.height * dpr);
+      const { width, height } = el.getBoundingClientRect();
+      const c = camera.current;
+      if (c.ready && (width !== viewWidth || height !== viewHeight)) {
+        if (c.fitted)
+          fitWorld(
+            c,
+            latest.current.world,
+            width,
+            height,
+            latest.current.compact,
+          );
+        else {
+          c.x += (width - viewWidth) / 2;
+          c.y += (height - viewHeight) / 2;
+        }
+      }
+      viewWidth = width;
+      viewHeight = height;
+      const pixelsWide = Math.round(width * dpr);
+      const pixelsHigh = Math.round(height * dpr);
+      if (el.width !== pixelsWide || el.height !== pixelsHigh) {
+        el.width = pixelsWide;
+        el.height = pixelsHigh;
+        renderKey = "";
+      }
     };
     const observer = new ResizeObserver(resize);
     observer.observe(el);
@@ -134,6 +195,7 @@ export default function MapView(props: Props) {
     };
     const move = (e: PointerEvent) => {
       if (e.pointerType === "touch" && touches.has(e.pointerId)) {
+        const previous = touches.get(e.pointerId)!;
         const before = touchDistance();
         touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (touches.size > 1) {
@@ -148,21 +210,34 @@ export default function MapView(props: Props) {
             0.15,
             Math.min(18, (z * after) / Math.max(1, before)),
           );
-          c.x = x - ((x - c.x) * c.zoom) / z;
-          c.y = y - ((y - c.y) * c.zoom) / z;
+          c.fitted = false;
+          const previousX = x - (e.clientX - previous.x) / 2;
+          const previousY = y - (e.clientY - previous.y) / 2;
+          c.x = x - ((previousX - c.x) * c.zoom) / z;
+          c.y = y - ((previousY - c.y) * c.zoom) / z;
           return;
         }
-        if (down) {
+        if (
+          down &&
+          (pinched ||
+            Math.hypot(e.clientX - origin.x, e.clientY - origin.y) >= 7)
+        ) {
+          camera.current.fitted = false;
           camera.current.x += e.clientX - last.x;
           camera.current.y += e.clientY - last.y;
           last = { x: e.clientX, y: e.clientY };
         }
         return;
       }
-      hover = locate(e);
-      latest.current.onHover(hover);
+      if (e.pointerType === "touch") return;
+      const nextHover = locate(e);
+      if (nextHover !== hover) {
+        hover = nextHover;
+        latest.current.onHover(hover);
+      }
       if (!down) return;
       if (drag) {
+        camera.current.fitted = false;
         camera.current.x += e.clientX - last.x;
         camera.current.y += e.clientY - last.y;
         last = { x: e.clientX, y: e.clientY };
@@ -211,6 +286,7 @@ export default function MapView(props: Props) {
         z = c.zoom;
       const x = e.clientX - r.left,
         y = e.clientY - r.top;
+      c.fitted = false;
       c.zoom = Math.max(0.15, Math.min(18, z * Math.exp(-e.deltaY * 0.001)));
       c.x = x - ((x - c.x) * c.zoom) / z;
       c.y = y - ((y - c.y) * c.zoom) / z;
@@ -223,8 +299,8 @@ export default function MapView(props: Props) {
     el.oncontextmenu = (e) => e.preventDefault();
     const draw = (timestamp: number = performance.now()) => {
       frame = requestAnimationFrame(draw);
-      if (document.hidden) return;
       const current = latest.current;
+      if (document.hidden || current.covered) return;
       if (
         timestamp - lastPaint <
         (current.lightMap ? 1000 / 16 : paintInterval)
@@ -233,6 +309,7 @@ export default function MapView(props: Props) {
       if (densityMode !== current.lightMap) {
         densityMode = current.lightMap;
         resize();
+        renderKey = "";
       }
       const cameraState = camera.current;
       const viewKey = [
@@ -245,6 +322,8 @@ export default function MapView(props: Props) {
         el.height,
         current.worldEpoch,
         current.selected,
+        current.paused,
+        current.speed,
         current.labels,
         current.political,
         current.diplomacy,
@@ -255,7 +334,7 @@ export default function MapView(props: Props) {
       ].join("|");
       if (
         current.lightMap &&
-        cameraState.zoom < 2 &&
+        (current.paused || cameraState.zoom < 2) &&
         renderedWorld === current.world &&
         renderKey === viewKey
       )
@@ -277,12 +356,7 @@ export default function MapView(props: Props) {
         ":" +
         latest.current.worldEpoch;
       if (!c.ready || key !== dims) {
-        c.zoom = Math.min(
-          (width - 80) / (w.width * 8),
-          (height - 80) / (w.height * 8),
-        );
-        c.x = (width - w.width * 8 * c.zoom) / 2;
-        c.y = (height - w.height * 8 * c.zoom) / 2;
+        fitWorld(c, w, width, height, current.compact);
         c.ready = true;
         dims = key;
       }
@@ -302,7 +376,9 @@ export default function MapView(props: Props) {
       const renderDetail = latest.current.lightMap
         ? Math.min(1, detail)
         : detail;
+      const rasterScale = current.lightMap && detail === 0 ? 0.5 : 1;
       if (
+        cachedScale !== rasterScale ||
         cachedEpoch !== latest.current.worldEpoch ||
         cachedWorld?.seed !== w.seed ||
         cachedWorld?.width !== w.width ||
@@ -311,21 +387,27 @@ export default function MapView(props: Props) {
         cachedPolitical !== political ||
         cachedDetail !== renderDetail
       ) {
-        raster.width = w.width * 8;
-        raster.height = w.height * 8;
+        const rasterWidth = w.width * 8 * rasterScale;
+        const rasterHeight = w.height * 8 * rasterScale;
+        if (raster.width !== rasterWidth || raster.height !== rasterHeight) {
+          raster.width = rasterWidth;
+          raster.height = rasterHeight;
+        }
         const display = ctx;
         ctx = raster.getContext("2d")!;
-        drawTerrain(ctx, w, political, c.zoom < 0.85 ? 0 : 1);
+        ctx.setTransform(rasterScale, 0, 0, rasterScale, 0, 0);
+        drawTerrain(ctx, w, political, detail === 0 ? 0 : 1);
         drawHydrology(ctx, w);
         drawInfrastructure(ctx, w, renderDetail);
         cachedDetail = renderDetail;
+        cachedScale = rasterScale;
         ctx = display;
         cachedEpoch = latest.current.worldEpoch;
         cachedRevision = w.renderRevision;
         cachedWorld = w;
         cachedPolitical = political;
       }
-      ctx.drawImage(raster, 0, 0);
+      ctx.drawImage(raster, 0, 0, w.width * 8, w.height * 8);
       drawActors(
         ctx,
         w,
@@ -624,6 +706,7 @@ export default function MapView(props: Props) {
     const el = canvas.current!,
       c = camera.current,
       w = props.world;
+    c.fitted = false;
     c.x = el.clientWidth / 2 - ((props.focus.tile % w.width) * 8 + 4) * c.zoom;
     c.y =
       el.clientHeight / 2 -
@@ -635,16 +718,12 @@ export default function MapView(props: Props) {
       w = latest.current.world;
     if (!c.ready) return;
     if (props.command.action === "fit") {
-      c.zoom = Math.min(
-        (el.clientWidth - 80) / (w.width * 8),
-        (el.clientHeight - 80) / (w.height * 8),
-      );
-      c.x = (el.clientWidth - w.width * 8 * c.zoom) / 2;
-      c.y = (el.clientHeight - w.height * 8 * c.zoom) / 2;
+      fitWorld(c, w, el.clientWidth, el.clientHeight, latest.current.compact);
     } else {
+      c.fitted = false;
       const z = c.zoom;
       c.zoom = Math.max(
-        0.4,
+        Math.min(0.15, z),
         Math.min(
           18,
           props.command.action === "detail"

@@ -1,0 +1,391 @@
+/* The map owns the space between the header and the touch controls. */
+@media (max-width: 760px), (max-width: 950px) and (max-height: 550px) {
+  .app {
+    --hud-gutter: 8px;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0
+      env(safe-area-inset-left);
+    background: #122b2d;
+  }
+
+  .app header {
+    height: 52px;
+    padding: 0 var(--hud-gutter);
+    gap: 4px;
+  }
+  .app header nav {
+    gap: 3px;
+  }
+  .app header nav button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 5px;
+  }
+  .app header nav button > span {
+    display: none;
+  }
+  .app header .brand {
+    gap: 6px;
+    font-size: clamp(12px, 3.5vw, 16px);
+    letter-spacing: 1px;
+  }
+  .app header .brand small,
+  .header-world {
+    display: none;
+  }
+  .app header .brand-mark {
+    width: 29px;
+    height: 29px;
+  }
+  .app header .brand-mark .pixel-icon {
+    width: 18px;
+  }
+
+  .app .world-status {
+    top: 7px;
+    left: var(--hud-gutter);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: auto;
+    height: 44px;
+    padding: 0 9px;
+  }
+  .app .world-status .year {
+    font-size: 22px;
+    margin: 0;
+    white-space: nowrap;
+  }
+  .app .world-status .year small {
+    margin-left: 2px;
+  }
+  .app .world-status .stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .app .world-status .stats > span {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+  }
+  .app .world-status .stats b {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+  .world-status > .eyebrow,
+  .world-status .living-summary,
+  .world-status .settler-count,
+  .world-status .stats small,
+  .app .atlas-corner,
+  .app .map-coordinate {
+    display: none;
+  }
+
+  .mobile-nations,
+  .mobile-history {
+    background: var(--panel);
+    color: #ead9a7;
+    border: 1px solid var(--line);
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 12px;
+  }
+  .mobile-nations {
+    position: absolute;
+    top: 7px;
+    right: var(--hud-gutter);
+    z-index: 9;
+    padding: 0 9px;
+  }
+  .mobile-nations[aria-expanded="true"] {
+    background: #35564c;
+  }
+
+  .app .diplomacy-summary {
+    top: 55px !important;
+    left: var(--hud-gutter) !important;
+    gap: 3px;
+    transform: none !important;
+  }
+  .app .diplomacy-status > button {
+    min-height: 44px;
+    gap: 2px;
+    padding: 0 5px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .app .diplomacy-status > button .pixel-icon {
+    width: 12px;
+  }
+  .app .diplomacy-preview {
+    display: none;
+  }
+  .app .map-actions {
+    top: 55px;
+    right: var(--hud-gutter);
+    flex-direction: row;
+    max-width: none;
+    gap: 0;
+    padding: 0;
+  }
+  .app .map-actions > button {
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .app .map-actions > button .pixel-icon {
+    width: 17px;
+    height: 17px;
+  }
+  .app .map-actions > button span,
+  .app .map-actions .desktop-history-action {
+    display: none;
+  }
+  .app .map-actions .undo-action {
+    font-size: 0;
+  }
+  .app .map-actions .undo-action::after {
+    content: "↶";
+    font-size: 17px;
+  }
+  .app .display-menu {
+    width: min(270px, calc(100vw - 30px));
+    max-height: calc(100dvh - 215px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    gap: 0;
+  }
+  .app .display-menu label {
+    min-height: 42px;
+  }
+
+  .app .kingdoms-panel,
+  .app .illustrated-nation {
+    top: auto !important;
+    bottom: 0;
+    left: auto;
+    right: var(--hud-gutter) !important;
+    width: min(440px, calc(100% - 16px)) !important;
+    max-height: min(72%, 560px) !important;
+    z-index: 22;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 12px;
+    border-radius: 15px 15px 0 0;
+    background: #183c3f;
+  }
+  .app .kingdoms-panel .section-caption {
+    margin: 0;
+    gap: 7px;
+    font-size: 12px;
+  }
+  .app .kingdoms-panel .section-caption > span {
+    margin-right: auto;
+  }
+  .app .kingdoms-panel .section-caption button,
+  .app .illustrated-nation .close {
+    width: 44px;
+    min-height: 44px;
+    font-size: 21px;
+  }
+  .app .kingdoms-panel .nation-browser-list {
+    max-height: min(43dvh, 330px);
+  }
+  .app .kingdoms-panel .kingdom-list button {
+    display: flex;
+    min-height: 44px;
+  }
+  .app .kingdoms-panel .kingdom-info > b,
+  .app .kingdoms-panel .kingdom-pop {
+    font-size: 12px;
+  }
+  .app .kingdom-history {
+    display: none;
+  }
+  .app .kingdoms-panel :is(input, select),
+  .app .epi-panel :is(input, textarea) {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .app .epi-panel {
+    inset: 0;
+    width: 100%;
+    border-radius: 0;
+  }
+  .app .epi-heading > button,
+  .app .epi-input > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .app .epi-visible :is(.map-actions, .nation-panel, .mobile-nations) {
+    visibility: hidden;
+  }
+
+  .app .zoom-controls {
+    bottom: 8px;
+    right: var(--hud-gutter);
+    left: auto;
+    display: flex;
+    flex-direction: row;
+    padding: 0;
+    z-index: 5;
+  }
+  .app .zoom-controls button {
+    width: 44px;
+    height: 44px;
+  }
+  .app .zoom-controls > span {
+    display: none;
+  }
+  .app .epi-report {
+    bottom: 60px;
+    padding: 4px 7px;
+    width: min(330px, calc(100% - 16px));
+  }
+  .app .epi-report img {
+    width: 30px;
+    height: 30px;
+  }
+  .app .epi-report button {
+    min-height: 44px;
+  }
+  .app .tile-inspector {
+    display: block;
+    top: auto;
+    bottom: 8px;
+    left: var(--hud-gutter);
+    width: auto;
+    max-width: calc(100% - 156px);
+    padding: 6px;
+  }
+  .app .tile-inspector > .eyebrow,
+  .app .tile-inspector h3 small,
+  .app .tile-inspector > p {
+    display: none;
+  }
+  .app .tile-inspector h3 {
+    font-size: 12px;
+    margin: 0 38px 3px 0;
+  }
+  .app .tile-inspector > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .app .tile-inspector > button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+
+  .app footer {
+    position: relative;
+    inset: auto;
+    transform: none;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    padding: 5px var(--hud-gutter) calc(5px + env(safe-area-inset-bottom));
+    background: #122b2d;
+    border-top: 1px solid var(--line);
+  }
+  .app footer .time-controls {
+    flex: 1 1 auto;
+    order: 0;
+    gap: 4px;
+    padding: 0;
+    min-height: 44px;
+    min-width: 0;
+    max-width: none;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .app .time-controls > div {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+  .app .time-controls small,
+  .app.observing footer .brush {
+    display: none;
+  }
+  .app .time-controls .play {
+    width: 44px;
+    height: 44px;
+  }
+  .app .speeds {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    margin: 0;
+  }
+  .app .speeds button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 2px;
+    font-size: 12px;
+  }
+  .app .mobile-history {
+    order: 1;
+    pointer-events: auto;
+    padding: 0;
+  }
+  .app:not(.observing) footer {
+    flex-wrap: wrap;
+  }
+  .app footer .toolbox {
+    order: 2;
+    flex: 1 0 100%;
+    max-width: none;
+  }
+  .app:not(.observing) footer .brush {
+    order: 3;
+  }
+}
+
+@media (max-width: 360px) {
+  .app .diplomacy-status > button {
+    padding: 0 3px;
+  }
+  .app .diplomacy-status > button .pixel-icon {
+    display: none;
+  }
+  .app .map-actions .undo-action {
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+  }
+}
+
+@media (max-height: 550px) and (max-width: 950px) and (min-width: 601px) {
+  .app header {
+    height: 46px;
+  }
+  .app .world-status,
+  .app .mobile-nations {
+    top: 4px;
+  }
+  .app .map-actions {
+    top: 4px;
+    right: 82px;
+  }
+  .app .diplomacy-summary {
+    top: 4px !important;
+    left: 225px !important;
+  }
+  .app .kingdoms-panel,
+  .app .illustrated-nation {
+    max-height: 82% !important;
+  }
+}

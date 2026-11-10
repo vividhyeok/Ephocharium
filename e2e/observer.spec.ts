@@ -22,15 +22,48 @@ test("observer is the default and experiments are an explicit reversible mode", 
   mkdirSync("test-results/observer", { recursive: true });
   await page.screenshot({ path: "test-results/observer/desktop.png" });
   await page.setViewportSize({ width: 390, height: 844 });
+  const nations = page.getByRole("button", { name: "국가 목록", exact: true });
+  await expect(nations).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByRole("navigation", { name: "관찰 도구" })).toHaveCount(
+    0,
+  );
+  await expect(page.locator(".kingdoms-panel")).toHaveCount(0);
+  const canvas = page.getByLabel("문명 세계 지도");
+  await expect
+    .poll(async () => (await canvas.boundingBox())?.height)
+    .toBeGreaterThan(700);
+  const pause = page.getByRole("button", { name: "일시정지", exact: true });
+  await expect(pause).toBeInViewport({ ratio: 1 });
+  await pause.click();
   await expect(
-    page.getByRole("navigation", { name: "관찰 도구" }),
-  ).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
+    page.getByRole("button", { name: "재생", exact: true }),
+  ).toBeInViewport({ ratio: 1 });
   await page.screenshot({ path: "test-results/observer/mobile.png" });
+  await nations.click();
+  await expect(page.getByLabel("국가 검색")).toBeVisible();
+  await page.getByLabel("국가 정렬 기준").selectOption("alliance");
+  await page.getByLabel("국가 목록 닫기").click();
+  await expect(page.locator(".kingdoms-panel")).toHaveCount(0);
+  await page.getByRole("button", { name: "연표·전쟁 기록" }).click();
+  await expect(page.getByRole("dialog", { name: "세계의 역사" })).toBeVisible();
+  await page.getByLabel("패널 닫기").click();
+
+  for (const [width, height] of [
+    [320, 568],
+    [844, 390],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await expect(nations).toBeInViewport();
+    await page.getByRole("button", { name: "세계 전체 보기" }).click();
+    const diplomacy = await page.locator(".diplomacy-summary").boundingBox();
+    const settings = await page.locator(".map-actions").boundingBox();
+    expect(diplomacy!.x + diplomacy!.width).toBeLessThan(settings!.x);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
 });
 test("worker rejects destructive commands while observing and preserves the actual world", async ({
   page,
